@@ -22,4 +22,7 @@ internal static partial class Kernel32
 
     [LibraryImport("kernel32.dll")]
     public static partial uint GetCurrentThreadId();
+
+    [LibraryImport("kernel32.dll")]
+    public static partial nint GetConsoleWindow();
 }

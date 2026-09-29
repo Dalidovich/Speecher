@@ -4,6 +4,7 @@ using Speecher.Configuration;
 using Speecher.Dictation;
 using Speecher.Hotkeys;
 using Speecher.Speech;
+using Speecher.Taskbar;
 
 namespace Speecher.App;
 
@@ -14,6 +15,7 @@ public sealed class SpeecherApp : IDisposable
     private HotkeyListener? hotkeyListener;
     private SpeechTranscriber? transcriber;
     private DictationController? controller;
+    private TaskbarBadge? taskbarBadge;
 
     public int Run()
     {
@@ -44,6 +46,7 @@ public sealed class SpeecherApp : IDisposable
     public void Dispose()
     {
         controller?.Dispose();
+        taskbarBadge?.Dispose();
         hotkeyListener?.Dispose();
         DisposeQuietly(transcriber);
         downloader.Dispose();
@@ -71,6 +74,13 @@ public sealed class SpeecherApp : IDisposable
         ConsoleLog.Info($"Backend: {transcriber.Backend}");
 
         controller = new DictationController(settings, transcriber);
+        taskbarBadge = TaskbarBadge.Attach();
+        if (taskbarBadge is not null)
+        {
+            controller.StateChanged += taskbarBadge.Show;
+            taskbarBadge.Show(DictationState.Idle);
+        }
+
         hotkeyListener!.Pressed += controller.OnHotkey;
         ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, Ctrl+C to exit.");
 

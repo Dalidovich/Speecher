@@ -20,6 +20,9 @@ internal static partial class User32
 
     public const uint MapVkVkToVsc = 0;
 
+    public const int SmCxSmIcon = 49;
+    public const uint IconResourceVersion = 0x00030000;
+
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool RegisterHotKey(nint hWnd, int id, uint fsModifiers, uint vk);
@@ -47,6 +50,16 @@ internal static partial class User32
 
     [LibraryImport("user32.dll", EntryPoint = "MapVirtualKeyW")]
     public static partial uint MapVirtualKey(uint uCode, uint uMapType);
+
+    [LibraryImport("user32.dll")]
+    public static partial int GetSystemMetrics(int nIndex);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial nint CreateIconFromResourceEx(byte[] presbits, uint dwResSize, [MarshalAs(UnmanagedType.Bool)] bool fIcon, uint dwVer, int cxDesired, int cyDesired, uint flags);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DestroyIcon(nint hIcon);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct Msg

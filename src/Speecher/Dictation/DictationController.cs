@@ -32,6 +32,8 @@ public sealed class DictationController : IDisposable
         commandMatcher = new VoiceCommandMatcher(settings.VoiceCommands);
     }
 
+    public event Action<DictationState>? StateChanged;
+
     public void OnHotkey()
     {
         lock (sync)
@@ -122,6 +124,7 @@ public sealed class DictationController : IDisposable
         var cancellation = new CancellationTokenSource();
         operation = cancellation;
         state = DictationState.Transcribing;
+        StateChanged?.Invoke(state);
         var id = generation;
         _ = Task.Run(() => ProcessRecordingAsync(recording, id, cancellation.Token));
     }
@@ -289,5 +292,6 @@ public sealed class DictationController : IDisposable
     {
         state = next;
         ConsoleLog.Event(next == DictationState.Idle ? "Idle" : $"{next}...");
+        StateChanged?.Invoke(next);
     }
 }
