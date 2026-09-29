@@ -21,15 +21,45 @@
 - Микрофон.
 - Около 2 ГБ свободного места под модель; для CUDA — ещё примерно 1 ГБ под библиотеки.
 - Для ускорения на GPU — видеокарта NVIDIA с установленным драйвером. CUDA Toolkit ставить не нужно.
-- Для сборки — [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
+- Для сборки — [Git](https://git-scm.com/download/win) и [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) (x64).
+- Интернет при первом запуске: для скачивания модели и библиотек CUDA.
 
-## Сборка
+## Установка
 
-```powershell
-dotnet publish src/Speecher -c Release -o publish
-```
+1. Установите [Git](https://git-scm.com/download/win) и [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0). Проверьте, что SDK установлен:
 
-Получится self-contained `Speecher.exe`: установленный .NET на целевой машине не нужен. Рядом с exe лежит папка `runtimes` с нативными библиотеками Whisper, её нужно держать вместе с exe.
+   ```powershell
+   dotnet --list-sdks
+   ```
+
+   В списке должна быть версия `9.0.x`.
+
+2. Если есть видеокарта NVIDIA, установите или обновите драйвер с [сайта NVIDIA](https://www.nvidia.com/drivers). Для CUDA 12 нужен драйвер версии 528 или новее. Без видеокарты NVIDIA этот шаг пропустите: приложение будет работать на CPU, но медленнее.
+
+3. Клонируйте репозиторий и перейдите в его папку:
+
+   ```powershell
+   git clone https://github.com/Dalidovich/Speecher.git
+   cd Speecher
+   ```
+
+4. Соберите приложение:
+
+   ```powershell
+   dotnet publish src/Speecher -c Release -o publish
+   ```
+
+   Зависимости NuGet скачаются автоматически. В папке `publish` появятся `Speecher.exe` и папка `runtimes` с нативными библиотеками Whisper. Это self-contained сборка: .NET для её запуска не нужен, и папку `publish` можно скопировать на другой компьютер. Держите `runtimes` рядом с exe.
+
+5. Запустите приложение:
+
+   ```powershell
+   .\publish\Speecher.exe
+   ```
+
+   Первый запуск займёт время: скачивается модель (около 1,6 ГБ) и, при наличии NVIDIA, библиотеки CUDA. Когда в консоли появится `Ready`, можно диктовать.
+
+6. Проверьте строку `Backend:` в консоли. `CUDA` — распознавание идёт на видеокарте, `CPU` — на процессоре. Если видеокарта NVIDIA есть, а написано `CPU`, обновите драйвер и удалите папку `publish/runtime`, чтобы библиотеки CUDA скачались заново.
 
 ## Первый запуск
 
@@ -93,6 +123,16 @@ dotnet publish src/Speecher -c Release -o publish
 | `VoiceCommands` | Фразы для голосовых команд `Enter`, `Tab`, `Undo`. |
 
 Если файл повреждён, приложение предупредит об этом и перезапишет его значениями по умолчанию.
+
+## Возможные проблемы
+
+| Симптом | Решение |
+|---|---|
+| `Failed to register hotkey` | Сочетание уже занято другой программой. Укажите другое в `Hotkey` в `settings.json`. |
+| `Recording device "..." was not found` | Имя в `MicrophoneName` не совпадает ни с одним устройством. Скопируйте имя из списка в консоли или оставьте пустую строку. |
+| `Failed to download model` | Нет доступа к huggingface.co. Проверьте интернет или положите `ggml-large-v3-turbo.bin` в папку `models` вручную. |
+| Текст не печатается в некоторых окнах | Windows не даёт обычному процессу вводить текст в программы, запущенные от имени администратора. Запустите Speecher тоже от имени администратора. |
+| `Skipped: silence` на обычной речи | Микрофон слишком тихий. Увеличьте его громкость в Windows или понизьте `SilenceThresholdDbfs`, например до `-55`. |
 
 ## Файлы рядом с exe
 
