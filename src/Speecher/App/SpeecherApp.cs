@@ -17,12 +17,12 @@ public sealed class SpeecherApp : IDisposable
     private DictationController? controller;
     private TaskbarBadge? taskbarBadge;
 
-    public int Run()
+    public int Run(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
         try
         {
-            RunAsync(shutdown.Token).GetAwaiter().GetResult();
+            RunAsync(args, shutdown.Token).GetAwaiter().GetResult();
             return 0;
         }
         catch (OperationCanceledException) when (shutdown.Token.IsCancellationRequested)
@@ -54,10 +54,14 @@ public sealed class SpeecherApp : IDisposable
         shutdown.Dispose();
     }
 
-    private async Task RunAsync(CancellationToken cancellationToken)
+    private async Task RunAsync(string[] args, CancellationToken cancellationToken)
     {
+        var options = LaunchOptions.Parse(args);
         CudaRuntimeProvider.RedirectCompilationCache();
         var settings = LoadSettings();
+        JumpList.Register();
+        var outputMode = options.OutputMode ?? settings.DefaultOutputMode;
+        ConsoleLog.Info($"Output mode: {outputMode}");
         ListMicrophones(settings.MicrophoneName);
         var hotkey = RegisterHotkey(settings.Hotkey);
 
@@ -73,7 +77,7 @@ public sealed class SpeecherApp : IDisposable
         transcriber = SpeechTranscriber.Load(modelPath);
         ConsoleLog.Info($"Backend: {transcriber.Backend}");
 
-        controller = new DictationController(settings, transcriber);
+        controller = new DictationController(settings, outputMode, transcriber);
         taskbarBadge = TaskbarBadge.Attach();
         if (taskbarBadge is not null)
         {

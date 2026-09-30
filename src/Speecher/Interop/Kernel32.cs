@@ -8,6 +8,8 @@ internal static partial class Kernel32
     public const uint CtrlBreakEvent = 1;
     public const uint CtrlCloseEvent = 2;
 
+    public const uint GmemMoveable = 0x0002;
+
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public delegate bool ConsoleCtrlHandler(uint ctrlType);
@@ -25,4 +27,17 @@ internal static partial class Kernel32
 
     [LibraryImport("kernel32.dll")]
     public static partial nint GetConsoleWindow();
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    public static partial nint GlobalAlloc(uint uFlags, nuint dwBytes);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    public static partial nint GlobalLock(nint hMem);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GlobalUnlock(nint hMem);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    public static partial nint GlobalFree(nint hMem);
 }

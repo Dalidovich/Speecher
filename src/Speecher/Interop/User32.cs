@@ -20,6 +20,8 @@ internal static partial class User32
 
     public const uint MapVkVkToVsc = 0;
 
+    public const uint CfUnicodeText = 13;
+
     public const int SmCxSmIcon = 49;
     public const uint IconResourceVersion = 0x00030000;
 
@@ -60,6 +62,21 @@ internal static partial class User32
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool DestroyIcon(nint hIcon);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool OpenClipboard(nint hWndNewOwner);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool CloseClipboard();
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool EmptyClipboard();
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial nint SetClipboardData(uint uFormat, nint hMem);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct Msg

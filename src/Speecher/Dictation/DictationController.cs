@@ -11,6 +11,7 @@ public sealed class DictationController : IDisposable
 {
     private readonly object sync = new();
     private readonly AppSettings settings;
+    private readonly OutputMode outputMode;
     private readonly AudioRecorder recorder;
     private readonly SpeechTranscriber transcriber;
     private readonly KeyboardTyper typer = new();
@@ -24,9 +25,10 @@ public sealed class DictationController : IDisposable
     private int lastInputLength;
     private bool disposed;
 
-    public DictationController(AppSettings settings, SpeechTranscriber transcriber)
+    public DictationController(AppSettings settings, OutputMode outputMode, SpeechTranscriber transcriber)
     {
         this.settings = settings;
+        this.outputMode = outputMode;
         this.transcriber = transcriber;
         recorder = new AudioRecorder(settings.MicrophoneName);
         commandMatcher = new VoiceCommandMatcher(settings.VoiceCommands);
@@ -224,9 +226,21 @@ public sealed class DictationController : IDisposable
                 Interlocked.Add(ref lastInputLength, -erased);
                 break;
             default:
-                RememberInput(typer.TypeText(text + " ", cancellationToken));
+                OutputText(text, cancellationToken);
                 break;
         }
+    }
+
+    private void OutputText(string text, CancellationToken cancellationToken)
+    {
+        if (outputMode == OutputMode.Clipboard)
+        {
+            ClipboardWriter.SetText(text, cancellationToken);
+            ConsoleLog.Event("Copied to clipboard");
+            return;
+        }
+
+        RememberInput(typer.TypeText(text + " ", cancellationToken));
     }
 
     private void RememberInput(int sent)

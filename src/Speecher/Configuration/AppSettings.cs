@@ -10,6 +10,8 @@ public sealed class AppSettings
 
     public string MicrophoneName { get; set; } = string.Empty;
 
+    public OutputMode DefaultOutputMode { get; set; } = OutputMode.Type;
+
     public double MaxRecordingSeconds { get; set; } = 120;
 
     public double MinRecordingSeconds { get; set; } = 0.5;
@@ -27,6 +29,11 @@ public sealed class AppSettings
 
     public string? FindInvalidField()
     {
+        if (!Enum.IsDefined(DefaultOutputMode))
+        {
+            return nameof(DefaultOutputMode);
+        }
+
         if (MaxRecordingSeconds <= 0 || double.IsNaN(MaxRecordingSeconds))
         {
             return nameof(MaxRecordingSeconds);
