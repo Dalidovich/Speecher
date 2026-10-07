@@ -133,7 +133,7 @@
 {
   "Hotkey": "Ctrl+Alt+Space",
   "MicrophoneName": "",
-  "DefaultOutputMode": "Type",
+  "DefaultOutputMode": "Clipboard",
   "MaxRecordingSeconds": 120,
   "MinRecordingSeconds": 0.5,
   "SilenceThresholdDbfs": -45,

@@ -10,7 +10,7 @@ public sealed class AppSettings
 
     public string MicrophoneName { get; set; } = string.Empty;
 
-    public OutputMode DefaultOutputMode { get; set; } = OutputMode.Type;
+    public OutputMode DefaultOutputMode { get; set; } = OutputMode.Clipboard;
 
     public double MaxRecordingSeconds { get; set; } = 120;
 
