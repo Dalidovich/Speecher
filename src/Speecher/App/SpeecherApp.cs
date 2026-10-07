@@ -69,12 +69,21 @@ public sealed class SpeecherApp : IDisposable
         JumpList.Register();
         var outputMode = options.OutputMode ?? settings.DefaultOutputMode;
         ConsoleLog.Info($"Output mode: {outputMode}");
-        ListMicrophones(settings.MicrophoneName);
+        ConsoleLog.Info($"Audio source: {options.AudioSource}");
+        if (options.AudioSource == AudioSource.System)
+        {
+            ShowOutputDevice();
+        }
+        else
+        {
+            ListMicrophones(settings.MicrophoneName);
+        }
+
         var hotkey = RegisterHotkey(settings.Hotkey);
 
         var loadedTranscriber = await LoadTranscriberAsync(cancellationToken);
 
-        controller = new DictationController(settings, outputMode, loadedTranscriber);
+        controller = new DictationController(settings, outputMode, options.AudioSource, loadedTranscriber);
         taskbarBadge = TaskbarBadge.Attach();
         if (taskbarBadge is not null)
         {
@@ -128,6 +137,13 @@ public sealed class SpeecherApp : IDisposable
         }
 
         return settings;
+    }
+
+    private static void ShowOutputDevice()
+    {
+        var name = AudioDeviceCatalog.FindDefaultOutputName()
+            ?? throw new StartupException("No output devices found.");
+        ConsoleLog.Info($"Capturing the system default output device, currently: {name}");
     }
 
     private static void ListMicrophones(string microphoneName)

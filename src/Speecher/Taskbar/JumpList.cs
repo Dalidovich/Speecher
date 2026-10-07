@@ -11,6 +11,7 @@ public static class JumpList
     [
         ("Type text", $"{LaunchOptions.OutputArgument} {OutputMode.Type}"),
         ("Copy to clipboard", $"{LaunchOptions.OutputArgument} {OutputMode.Clipboard}"),
+        ("System audio to clipboard", $"{LaunchOptions.SourceArgument} {AudioSource.System} {LaunchOptions.OutputArgument} {OutputMode.Clipboard}"),
         ("Transcribe files", LaunchOptions.FilesArgument)
     ];
 

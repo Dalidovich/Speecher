@@ -16,12 +16,12 @@ public sealed class RecordingSession : IDisposable
     private int disposed;
     private volatile bool stopRequested;
 
-    public RecordingSession(MMDevice device, double maxSeconds, Action onMaxDurationReached, Action<Exception> onFaulted)
+    public RecordingSession(MMDevice device, bool loopback, double maxSeconds, Action onMaxDurationReached, Action<Exception> onFaulted)
     {
         this.device = device;
         this.onMaxDurationReached = onMaxDurationReached;
         this.onFaulted = onFaulted;
-        capture = new WasapiCapture(device);
+        capture = loopback ? new WasapiLoopbackCapture(device) : new WasapiCapture(device);
 
         var format = capture.WaveFormat;
         var maxFrames = (long)(maxSeconds * format.SampleRate);

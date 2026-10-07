@@ -1,16 +1,19 @@
+using NAudio.CoreAudioApi;
+using Speecher.Configuration;
+
 namespace Speecher.Audio;
 
-public sealed class AudioRecorder(string microphoneName)
+public sealed class AudioRecorder(AudioSource source, string microphoneName)
 {
     public RecordingSession Start(double maxSeconds, Action onMaxDurationReached, Action<Exception> onFaulted)
     {
-        var device = AudioDeviceCatalog.Resolve(microphoneName)
-            ?? throw new InvalidOperationException("Recording device is not available.");
+        var loopback = source == AudioSource.System;
+        var device = ResolveDevice(loopback);
 
         RecordingSession? session = null;
         try
         {
-            session = new RecordingSession(device, maxSeconds, onMaxDurationReached, onFaulted);
+            session = new RecordingSession(device, loopback, maxSeconds, onMaxDurationReached, onFaulted);
             session.Start();
             return session;
         }
@@ -27,5 +30,17 @@ public sealed class AudioRecorder(string microphoneName)
 
             throw;
         }
+    }
+
+    private MMDevice ResolveDevice(bool loopback)
+    {
+        if (loopback)
+        {
+            return AudioDeviceCatalog.ResolveDefaultOutput()
+                ?? throw new InvalidOperationException("Output device is not available.");
+        }
+
+        return AudioDeviceCatalog.Resolve(microphoneName)
+            ?? throw new InvalidOperationException("Recording device is not available.");
     }
 }

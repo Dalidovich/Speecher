@@ -8,7 +8,7 @@ public static class AudioDeviceCatalog
     public static IReadOnlyList<AudioDeviceInfo> ListCaptureDevices()
     {
         using var enumerator = new MMDeviceEnumerator();
-        var defaultId = TryGetDefault(enumerator) is { } defaultDevice ? ReadIdAndDispose(defaultDevice) : null;
+        var defaultId = TryGetDefault(enumerator, DataFlow.Capture, Role.Console) is { } defaultDevice ? ReadIdAndDispose(defaultDevice) : null;
 
         var devices = new List<AudioDeviceInfo>();
         foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
@@ -22,12 +22,24 @@ public static class AudioDeviceCatalog
         return devices;
     }
 
+    public static string? FindDefaultOutputName()
+    {
+        using var device = ResolveDefaultOutput();
+        return device?.FriendlyName;
+    }
+
+    public static MMDevice? ResolveDefaultOutput()
+    {
+        using var enumerator = new MMDeviceEnumerator();
+        return TryGetDefault(enumerator, DataFlow.Render, Role.Multimedia);
+    }
+
     public static MMDevice? Resolve(string microphoneName)
     {
         using var enumerator = new MMDeviceEnumerator();
         if (string.IsNullOrEmpty(microphoneName))
         {
-            return TryGetDefault(enumerator);
+            return TryGetDefault(enumerator, DataFlow.Capture, Role.Console);
         }
 
         MMDevice? match = null;
@@ -46,12 +58,12 @@ public static class AudioDeviceCatalog
         return match;
     }
 
-    private static MMDevice? TryGetDefault(MMDeviceEnumerator enumerator)
+    private static MMDevice? TryGetDefault(MMDeviceEnumerator enumerator, DataFlow flow, Role role)
     {
         try
         {
-            return enumerator.HasDefaultAudioEndpoint(DataFlow.Capture, Role.Console)
-                ? enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console)
+            return enumerator.HasDefaultAudioEndpoint(flow, role)
+                ? enumerator.GetDefaultAudioEndpoint(flow, role)
                 : null;
         }
         catch (COMException)

@@ -12,6 +12,7 @@ public sealed class DictationController : IDisposable
     private readonly object sync = new();
     private readonly AppSettings settings;
     private readonly OutputMode outputMode;
+    private readonly bool voiceCommandsEnabled;
     private readonly AudioRecorder recorder;
     private readonly SpeechTranscriber transcriber;
     private readonly KeyboardTyper typer = new();
@@ -25,12 +26,13 @@ public sealed class DictationController : IDisposable
     private int lastInputLength;
     private bool disposed;
 
-    public DictationController(AppSettings settings, OutputMode outputMode, SpeechTranscriber transcriber)
+    public DictationController(AppSettings settings, OutputMode outputMode, AudioSource audioSource, SpeechTranscriber transcriber)
     {
         this.settings = settings;
         this.outputMode = outputMode;
         this.transcriber = transcriber;
-        recorder = new AudioRecorder(settings.MicrophoneName);
+        voiceCommandsEnabled = audioSource == AudioSource.Microphone;
+        recorder = new AudioRecorder(audioSource, settings.MicrophoneName);
         commandMatcher = new VoiceCommandMatcher(settings.VoiceCommands);
     }
 
@@ -184,7 +186,7 @@ public sealed class DictationController : IDisposable
             ConsoleLog.Event($"Recognized [{result.Language}]: {result.Text}");
             history.Append(result.Text, result.Language, clip.DurationSeconds);
 
-            var command = commandMatcher.Match(result.Text);
+            var command = voiceCommandsEnabled ? commandMatcher.Match(result.Text) : null;
             if (command is not null)
             {
                 ConsoleLog.Event($"Command: {command}");
