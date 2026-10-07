@@ -7,10 +7,11 @@ namespace Speecher.Taskbar;
 
 public static class JumpList
 {
-    private static readonly (string Title, OutputMode Mode)[] Tasks =
+    private static readonly (string Title, string Arguments)[] Tasks =
     [
-        ("Type text", OutputMode.Type),
-        ("Copy to clipboard", OutputMode.Clipboard)
+        ("Type text", $"{LaunchOptions.OutputArgument} {OutputMode.Type}"),
+        ("Copy to clipboard", $"{LaunchOptions.OutputArgument} {OutputMode.Clipboard}"),
+        ("Transcribe files", LaunchOptions.FilesArgument)
     ];
 
     public static void Register()
@@ -29,9 +30,9 @@ public static class JumpList
             var objectArrayId = typeof(IObjectArray).GUID;
             list.BeginList(out _, ref objectArrayId);
             var tasks = (IObjectCollection)new EnumerableObjectCollectionClass();
-            foreach (var (title, mode) in Tasks)
+            foreach (var (title, arguments) in Tasks)
             {
-                tasks.AddObject(CreateTask(title, mode));
+                tasks.AddObject(CreateTask(title, arguments));
             }
 
             list.AddUserTasks(tasks);
@@ -43,11 +44,11 @@ public static class JumpList
         }
     }
 
-    private static IShellLinkW CreateTask(string title, OutputMode mode)
+    private static IShellLinkW CreateTask(string title, string arguments)
     {
         var link = (IShellLinkW)new ShellLinkClass();
         link.SetPath(PortablePaths.ExecutablePath);
-        link.SetArguments($"{LaunchOptions.OutputArgument} {mode}");
+        link.SetArguments(arguments);
         link.SetWorkingDirectory(PortablePaths.Root);
         link.SetIconLocation(PortablePaths.ExecutablePath, 0);
         link.SetDescription(title);

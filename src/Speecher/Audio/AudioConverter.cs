@@ -8,8 +8,11 @@ public static class AudioConverter
     public static AudioClip ToWhisperFormat(byte[] data, WaveFormat format)
     {
         using var stream = new RawSourceWaveStream(new MemoryStream(data), format);
-        ISampleProvider provider = stream.ToSampleProvider();
+        return ToWhisperFormat(stream.ToSampleProvider());
+    }
 
+    public static AudioClip ToWhisperFormat(ISampleProvider provider)
+    {
         if (provider.WaveFormat.Channels > 1)
         {
             provider = new MonoDownmixSampleProvider(provider);

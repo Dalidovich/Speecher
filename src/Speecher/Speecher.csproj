@@ -25,6 +25,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Concentus" Version="2.2.2" />
+    <PackageReference Include="Concentus.Oggfile" Version="1.0.7" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
