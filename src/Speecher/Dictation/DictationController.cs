@@ -240,7 +240,8 @@ public sealed class DictationController : IDisposable
             return;
         }
 
-        RememberInput(typer.TypeText(text + " ", cancellationToken));
+        var typed = typer.TypeText(text, cancellationToken);
+        RememberInput(typed + typer.PressKey(VirtualKey.Enter, 1, cancellationToken));
     }
 
     private void RememberInput(int sent)
