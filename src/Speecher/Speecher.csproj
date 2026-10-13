@@ -31,11 +31,12 @@
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime.Cuda12.Windows" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
   </ItemGroup>
 
   <Target Name="RemoveForeignWhisperRuntimes" BeforeTargets="AssignTargetPaths">
     <ItemGroup>
-      <None Remove="@(None)" Condition="$([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/win-x86/')) Or $([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/win-arm64/'))" />
+      <None Remove="@(None)" Condition="$([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/win-x86/')) Or $([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/win-arm64/')) Or $([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/vulkan/linux-x64/'))" />
     </ItemGroup>
   </Target>
 

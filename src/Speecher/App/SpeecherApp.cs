@@ -58,14 +58,13 @@ public sealed class SpeecherApp : IDisposable
     private async Task RunAsync(string[] args, CancellationToken cancellationToken)
     {
         var options = LaunchOptions.Parse(args);
-        CudaRuntimeProvider.RedirectCompilationCache();
+        var settings = LoadSettings();
         if (options.TranscribeFiles)
         {
-            await RunFileTranscriptionAsync(cancellationToken);
+            await RunFileTranscriptionAsync(settings, cancellationToken);
             return;
         }
 
-        var settings = LoadSettings();
         JumpList.Register();
         var outputMode = options.OutputMode ?? settings.DefaultOutputMode;
         ConsoleLog.Info($"Output mode: {outputMode}");
@@ -81,9 +80,9 @@ public sealed class SpeecherApp : IDisposable
 
         var hotkey = RegisterHotkey(settings.Hotkey);
 
-        var loadedTranscriber = await LoadTranscriberAsync(cancellationToken);
+        var loadedTranscriber = await LoadTranscriberAsync(settings, cancellationToken);
 
-        controller = new DictationController(settings, outputMode, options.AudioSource, loadedTranscriber);
+        controller =new DictationController(settings, outputMode, options.AudioSource, loadedTranscriber);
         taskbarBadge = TaskbarBadge.Attach();
         if (taskbarBadge is not null)
         {
@@ -97,7 +96,7 @@ public sealed class SpeecherApp : IDisposable
         await Task.Delay(Timeout.Infinite, cancellationToken);
     }
 
-    private async Task RunFileTranscriptionAsync(CancellationToken cancellationToken)
+    private async Task RunFileTranscriptionAsync(AppSettings settings, CancellationToken cancellationToken)
     {
         if (!Console.IsInputRedirected)
         {
@@ -106,23 +105,24 @@ public sealed class SpeecherApp : IDisposable
 
         JumpList.Register();
         ConsoleLog.Info("Mode: file transcription");
-        var loadedTranscriber = await LoadTranscriberAsync(cancellationToken);
+        var loadedTranscriber = await LoadTranscriberAsync(settings, cancellationToken);
         ConsoleLog.Info("Ready. Enter a path to an audio file or a directory, Ctrl+C to exit.");
         await new FileTranscriptionConsole(loadedTranscriber).RunAsync(cancellationToken);
     }
 
-    private async Task<SpeechTranscriber> LoadTranscriberAsync(CancellationToken cancellationToken)
+    private async Task<SpeechTranscriber> LoadTranscriberAsync(AppSettings settings, CancellationToken cancellationToken)
     {
         var modelPath = await ModelProvider.EnsureModelAsync(downloader, cancellationToken);
-        if (CudaRuntimeProvider.IsNvidiaDriverPresent())
+        if (settings.Backend == SpeechBackend.Cuda && CudaRuntimeProvider.IsNvidiaDriverPresent())
         {
+            CudaRuntimeProvider.RedirectCompilationCache();
             await CudaRuntimeProvider.EnsureLibrariesAsync(downloader, cancellationToken);
             CudaRuntimeProvider.Activate();
         }
 
         cancellationToken.ThrowIfCancellationRequested();
         ConsoleLog.Info("Loading model...");
-        transcriber = SpeechTranscriber.Load(modelPath);
+        transcriber = SpeechTranscriber.Load(modelPath, settings);
         ConsoleLog.Info($"Backend: {transcriber.Backend}");
         return transcriber;
     }

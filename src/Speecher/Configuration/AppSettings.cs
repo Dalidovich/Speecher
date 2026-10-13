@@ -18,12 +18,19 @@ public sealed class AppSettings
 
     public double SilenceThresholdDbfs { get; set; } = -45;
 
+    public SpeechBackend Backend { get; set; } = SpeechBackend.Vulkan;
+
+    public string GpuName { get; set; } = string.Empty;
+
+    public int CpuThreads { get; set; }
+
     public Dictionary<VoiceCommandAction, List<string>> VoiceCommands { get; set; } = DefaultVoiceCommands.Create();
 
     public void FillMissingValues()
     {
         Hotkey ??= DefaultHotkey;
         MicrophoneName ??= string.Empty;
+        GpuName ??= string.Empty;
         VoiceCommands ??= DefaultVoiceCommands.Create();
     }
 
@@ -47,6 +54,16 @@ public sealed class AppSettings
         if (SilenceThresholdDbfs > 0 || double.IsNaN(SilenceThresholdDbfs))
         {
             return nameof(SilenceThresholdDbfs);
+        }
+
+        if (!Enum.IsDefined(Backend))
+        {
+            return nameof(Backend);
+        }
+
+        if (CpuThreads < 0)
+        {
+            return nameof(CpuThreads);
         }
 
         return null;
