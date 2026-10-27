@@ -17,6 +17,7 @@ public sealed class DictationController : IDisposable
     private readonly SpeechTranscriber transcriber;
     private readonly KeyboardTyper typer = new();
     private readonly VoiceCommandMatcher commandMatcher;
+    private readonly ScriptTriggerMatcher scriptMatcher;
     private readonly HistoryWriter history = new();
 
     private DictationState state = DictationState.Idle;
@@ -34,6 +35,7 @@ public sealed class DictationController : IDisposable
         voiceCommandsEnabled = audioSource == AudioSource.Microphone;
         recorder = new AudioRecorder(audioSource, settings.MicrophoneName);
         commandMatcher = new VoiceCommandMatcher(settings.VoiceCommands);
+        scriptMatcher = new ScriptTriggerMatcher(settings.ScriptTriggers);
     }
 
     public event Action<DictationState>? StateChanged;
@@ -190,6 +192,17 @@ public sealed class DictationController : IDisposable
             if (command is not null)
             {
                 ConsoleLog.Event($"Command: {command}");
+            }
+
+            var scriptRule = voiceCommandsEnabled && command is null ? scriptMatcher.Match(result.Text) : null;
+            if (scriptRule is not null)
+            {
+                ScriptLauncher.Launch(scriptRule);
+                if (!scriptRule.OutputText)
+                {
+                    FinishOperation(id, null);
+                    return;
+                }
             }
 
             if (!TryAdvance(id, DictationState.Typing))

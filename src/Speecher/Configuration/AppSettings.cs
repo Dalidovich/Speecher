@@ -26,12 +26,16 @@ public sealed class AppSettings
 
     public Dictionary<VoiceCommandAction, List<string>> VoiceCommands { get; set; } = DefaultVoiceCommands.Create();
 
+    public ScriptTriggerSettings ScriptTriggers { get; set; } = new();
+
     public void FillMissingValues()
     {
         Hotkey ??= DefaultHotkey;
         MicrophoneName ??= string.Empty;
         GpuName ??= string.Empty;
         VoiceCommands ??= DefaultVoiceCommands.Create();
+        ScriptTriggers ??= new();
+        ScriptTriggers.FillMissingValues();
     }
 
     public string? FindInvalidField()
@@ -64,6 +68,12 @@ public sealed class AppSettings
         if (CpuThreads < 0)
         {
             return nameof(CpuThreads);
+        }
+
+        var invalidTriggerField = ScriptTriggers.FindInvalidField();
+        if (invalidTriggerField is not null)
+        {
+            return $"{nameof(ScriptTriggers)}.{invalidTriggerField}";
         }
 
         return null;
