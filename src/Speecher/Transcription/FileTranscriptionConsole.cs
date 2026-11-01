@@ -5,7 +5,7 @@ using Speecher.Speech;
 
 namespace Speecher.Transcription;
 
-public sealed class FileTranscriptionConsole(SpeechTranscriber transcriber)
+public sealed class FileTranscriptionConsole(ISpeechTranscriber transcriber)
 {
     private const string NothingRecognized = "(nothing recognized)";
 

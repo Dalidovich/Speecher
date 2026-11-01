@@ -4,5 +4,6 @@ public enum SpeechBackend
 {
     Vulkan,
     Cuda,
-    Cpu
+    Cpu,
+    Api
 }

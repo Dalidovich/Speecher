@@ -24,6 +24,8 @@ public sealed class AppSettings
 
     public int CpuThreads { get; set; }
 
+    public ApiTranscriptionSettings Api { get; set; } = new();
+
     public Dictionary<VoiceCommandAction, List<string>> VoiceCommands { get; set; } = DefaultVoiceCommands.Create();
 
     public ScriptTriggerSettings ScriptTriggers { get; set; } = new();
@@ -33,6 +35,8 @@ public sealed class AppSettings
         Hotkey ??= DefaultHotkey;
         MicrophoneName ??= string.Empty;
         GpuName ??= string.Empty;
+        Api ??= new();
+        Api.FillMissingValues();
         VoiceCommands ??= DefaultVoiceCommands.Create();
         ScriptTriggers ??= new();
         ScriptTriggers.FillMissingValues();
@@ -68,6 +72,15 @@ public sealed class AppSettings
         if (CpuThreads < 0)
         {
             return nameof(CpuThreads);
+        }
+
+        if (Backend == SpeechBackend.Api)
+        {
+            var invalidApiField = Api.FindInvalidField();
+            if (invalidApiField is not null)
+            {
+                return $"{nameof(Api)}.{invalidApiField}";
+            }
         }
 
         var invalidTriggerField = ScriptTriggers.FindInvalidField();

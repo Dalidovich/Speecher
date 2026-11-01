@@ -14,7 +14,7 @@ public sealed class DictationController : IDisposable
     private readonly OutputMode outputMode;
     private readonly bool voiceCommandsEnabled;
     private readonly AudioRecorder recorder;
-    private readonly SpeechTranscriber transcriber;
+    private readonly ISpeechTranscriber transcriber;
     private readonly KeyboardTyper typer = new();
     private readonly VoiceCommandMatcher commandMatcher;
     private readonly ScriptTriggerMatcher scriptMatcher;
@@ -27,7 +27,7 @@ public sealed class DictationController : IDisposable
     private int lastInputLength;
     private bool disposed;
 
-    public DictationController(AppSettings settings, OutputMode outputMode, AudioSource audioSource, SpeechTranscriber transcriber)
+    public DictationController(AppSettings settings, OutputMode outputMode, AudioSource audioSource, ISpeechTranscriber transcriber)
     {
         this.settings = settings;
         this.outputMode = outputMode;

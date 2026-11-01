@@ -14,7 +14,7 @@ public sealed class SpeecherApp : IDisposable
     private readonly ShutdownSignal shutdown = new();
     private readonly FileDownloader downloader = new();
     private HotkeyListener? hotkeyListener;
-    private SpeechTranscriber? transcriber;
+    private ISpeechTranscriber? transcriber;
     private DictationController? controller;
     private TaskbarBadge? taskbarBadge;
 
@@ -110,8 +110,16 @@ public sealed class SpeecherApp : IDisposable
         await new FileTranscriptionConsole(loadedTranscriber).RunAsync(cancellationToken);
     }
 
-    private async Task<SpeechTranscriber> LoadTranscriberAsync(AppSettings settings, CancellationToken cancellationToken)
+    private async Task<ISpeechTranscriber> LoadTranscriberAsync(AppSettings settings, CancellationToken cancellationToken)
     {
+        if (settings.Backend == SpeechBackend.Api)
+        {
+            ConsoleLog.Info("Checking transcription API...");
+            transcriber = await ApiSpeechTranscriber.CreateAsync(settings.Api, cancellationToken).ConfigureAwait(false);
+            ConsoleLog.Info($"Backend: {transcriber.Backend}");
+            return transcriber;
+        }
+
         var modelPath = await ModelProvider.EnsureModelAsync(downloader, cancellationToken);
         if (settings.Backend == SpeechBackend.Cuda && CudaRuntimeProvider.IsNvidiaDriverPresent())
         {

@@ -7,7 +7,7 @@ using Whisper.net.Logger;
 
 namespace Speecher.Speech;
 
-public sealed class SpeechTranscriber : IDisposable
+public sealed class SpeechTranscriber : ISpeechTranscriber
 {
     private const string Russian = "ru";
     private const string English = "en";

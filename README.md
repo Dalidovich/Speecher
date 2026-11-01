@@ -189,6 +189,21 @@
   "Backend": "Vulkan",
   "GpuName": "",
   "CpuThreads": 0,
+  "Api": {
+    "Endpoint": "",
+    "RequestMethod": "",
+    "HealthEndpoint": "",
+    "HealthMethod": "",
+    "HealthResponseProperty": "",
+    "HealthResponseValue": "",
+    "AudioContentType": "",
+    "LanguageParameter": "",
+    "Language": "",
+    "TextResponseProperty": "",
+    "LanguageResponseProperty": "",
+    "TimeoutSeconds": 0,
+    "Headers": {}
+  },
   "VoiceCommands": {
     "Enter": ["новая строка", "new line"],
     "Tab": ["таб", "tab"],
@@ -209,13 +224,41 @@
 | `MaxRecordingSeconds` | Максимальная длительность записи в секундах. |
 | `MinRecordingSeconds` | Записи короче этого значения пропускаются. |
 | `SilenceThresholdDbfs` | Порог тишины в dBFS. Если громкость записи ниже порога, она не распознаётся. |
-| `Backend` | Режим распознавания: `Vulkan` (по умолчанию), `Cuda` или `Cpu`. `Vulkan` и `Cuda` переключаются на CPU, если видеокарта недоступна. |
+| `Backend` | Режим распознавания: `Vulkan` (по умолчанию), `Cuda`, `Cpu` или `Api`. `Vulkan` и `Cuda` переключаются на CPU, если видеокарта недоступна. |
 | `GpuName` | Часть имени видеокарты для режима `Vulkan`, например `GTX 1660`, без учёта регистра. Пустая строка — первая дискретная видеокарта с поддержкой fp16. Если подходящей нет, используется CPU. |
 | `CpuThreads` | Число потоков при работе на CPU. `0` — по числу логических процессоров. |
+| `Api` | Параметры HTTP-распознавания. Используются только при `Backend: "Api"`; в этом режиме модель и CUDA runtime не загружаются. |
 | `VoiceCommands` | Фразы для голосовых команд `Enter`, `Tab`, `Undo`. |
 | `ScriptTriggers` | Запуск скриптов по регулярным выражениям, см. [Запуск скриптов по фразе](#запуск-скриптов-по-фразе). При `Enabled: true` некорректное правило останавливает запуск с ошибкой `settings.json: ScriptTriggers.Rules[N].Pattern has an invalid value.` или `...Rules[N].Path/Command has an invalid value.`, если указаны оба поля или ни одного. |
 
 Параметры, которых нет в файле, принимают значения по умолчанию. Если файл повреждён, приложение предупредит об этом и перезапишет его значениями по умолчанию.
+
+### HTTP API
+
+Режим `Api` передаёт записанный звук как моно WAV, 16 кГц, сырыми байтами в заданный `Endpoint`. Все особенности сервиса задаются в секции `Api`: URL, методы запроса и health-проверки, MIME-тип, общий набор HTTP-заголовков, параметр языка и имена полей JSON-ответа. `TimeoutSeconds: 0` оставляет время ожидания неограниченным.
+
+Для сервиса из `WhisperAPIHandler-AGENT-INTEGRATION.md` укажите:
+
+```json
+"Backend": "Api",
+"Api": {
+  "Endpoint": "http://127.0.0.1:5080/api/transcriptions",
+  "RequestMethod": "POST",
+  "HealthEndpoint": "http://127.0.0.1:5080/health",
+  "HealthMethod": "GET",
+  "HealthResponseProperty": "status",
+  "HealthResponseValue": "ready",
+  "AudioContentType": "audio/wav",
+  "LanguageParameter": "language",
+  "Language": "auto",
+  "TextResponseProperty": "text",
+  "LanguageResponseProperty": "language",
+  "TimeoutSeconds": 0,
+  "Headers": {}
+}
+```
+
+Если endpoint не требует health-проверки, оставьте `HealthEndpoint`, `HealthResponseProperty` и `HealthResponseValue` пустыми. Для API без выбора языка оставьте пустым `LanguageParameter`; для ответа без языка — `LanguageResponseProperty`.
 
 ## Возможные проблемы
 
