@@ -7,12 +7,15 @@ public sealed class AppSettings
     public const string DefaultHotkey = "Ctrl+Alt+Space";
     public const string DefaultTypeTextHotkey = "Ctrl+Alt+T";
     public const string DefaultSystemAudioHotkey = "Ctrl+Alt+S";
+    public const string DefaultTranscribeFilesHotkey = "Ctrl+Alt+F";
 
     public string Hotkey { get; set; } = DefaultHotkey;
 
     public string TypeTextHotkey { get; set; } = DefaultTypeTextHotkey;
 
     public string SystemAudioHotkey { get; set; } = DefaultSystemAudioHotkey;
+
+    public string TranscribeFilesHotkey { get; set; } = DefaultTranscribeFilesHotkey;
 
     public string MicrophoneName { get; set; } = string.Empty;
 
@@ -39,6 +42,7 @@ public sealed class AppSettings
         Hotkey ??= DefaultHotkey;
         TypeTextHotkey ??= DefaultTypeTextHotkey;
         SystemAudioHotkey ??= DefaultSystemAudioHotkey;
+        TranscribeFilesHotkey ??= DefaultTranscribeFilesHotkey;
         MicrophoneName ??= string.Empty;
         GpuName ??= string.Empty;
         Api ??= new();

@@ -4,6 +4,7 @@ using Speecher.Configuration;
 using Speecher.Hotkeys;
 using Speecher.Input;
 using Speecher.Speech;
+using Speecher.Transcription;
 
 namespace Speecher.Dictation;
 
@@ -25,6 +26,7 @@ public sealed class DictationController : IDisposable
     private int lastInputLength;
     private bool typeTextArmed;
     private bool systemAudioArmed;
+    private bool filePickerOpen;
     private AudioSource recordingSource;
     private bool disposed;
 
@@ -97,6 +99,27 @@ public sealed class DictationController : IDisposable
             systemAudioArmed = !systemAudioArmed;
             ConsoleLog.Event(systemAudioArmed ? "System audio armed for the next recording" : "System audio disarmed");
         }
+    }
+
+    public void OnTranscribeFilesHotkey()
+    {
+        lock (sync)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            if (state != DictationState.Idle || filePickerOpen)
+            {
+                ConsoleLog.Event("Busy: finish the current operation before transcribing files");
+                return;
+            }
+
+            filePickerOpen = true;
+        }
+
+        _ = Task.Run(PickAndTranscribeFilesAsync);
     }
 
     public void Dispose()
@@ -273,6 +296,130 @@ public sealed class DictationController : IDisposable
         }
     }
 
+    private async Task PickAndTranscribeFilesAsync()
+    {
+        var files = await PickFilesAsync().ConfigureAwait(false);
+        long id;
+        bool typeText;
+        CancellationToken cancellationToken;
+        lock (sync)
+        {
+            filePickerOpen = false;
+            if (disposed || files.Count == 0)
+            {
+                return;
+            }
+
+            if (state != DictationState.Idle)
+            {
+                ConsoleLog.Event("Busy: selected files ignored");
+                return;
+            }
+
+            id = ++generation;
+            var cancellation = new CancellationTokenSource();
+            operation = cancellation;
+            cancellationToken = cancellation.Token;
+            typeText = TakeTypeTextFlag();
+            SetState(DictationState.Transcribing);
+        }
+
+        await TranscribeFilesAsync(files, id, typeText, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<IReadOnlyList<string>> PickFilesAsync()
+    {
+        try
+        {
+            var files = await AudioFilePicker.PickAsync().ConfigureAwait(false);
+            if (files.Count == 0)
+            {
+                ConsoleLog.Event("No files selected");
+            }
+
+            return files;
+        }
+        catch (Exception ex)
+        {
+            ConsoleLog.Error($"File dialog failed: {ConsoleLog.Describe(ex)}");
+            return [];
+        }
+    }
+
+    private async Task TranscribeFilesAsync(IReadOnlyList<string> files, long id, bool typeText, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var texts = new List<string>();
+            foreach (var file in files)
+            {
+                ConsoleLog.Event($"File: {file}");
+                var text = await TranscribeFileAsync(file, cancellationToken).ConfigureAwait(false);
+                if (!IsCurrent(id))
+                {
+                    return;
+                }
+
+                if (text is null)
+                {
+                    continue;
+                }
+
+                if (text.Length == 0)
+                {
+                    ConsoleLog.Event("Nothing recognized");
+                    continue;
+                }
+
+                ConsoleLog.Event($"Recognized: {text}");
+                texts.Add(text);
+            }
+
+            if (texts.Count == 0)
+            {
+                FinishOperation(id, null);
+                return;
+            }
+
+            if (!TryAdvance(id, DictationState.Typing))
+            {
+                return;
+            }
+
+            typer.WaitForModifiersReleased(cancellationToken);
+            OutputText(texts, typeText, cancellationToken);
+            FinishOperation(id, null);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            ConsoleLog.Error(ConsoleLog.Describe(ex));
+            FinishOperation(id, null);
+        }
+    }
+
+    private async Task<string?> TranscribeFileAsync(string file, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var clip = AudioFileDecoder.Decode(file);
+            if (clip.Samples.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            var result = await transcriber.TranscribeAsync(clip.Samples, cancellationToken).ConfigureAwait(false);
+            return result.Text;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ConsoleLog.Error(ConsoleLog.Describe(ex));
+            return null;
+        }
+    }
+
     private void ExecuteInput(VoiceCommandAction? command, string text, bool typeText, CancellationToken cancellationToken)
     {
         typer.WaitForModifiersReleased(cancellationToken);
@@ -291,22 +438,28 @@ public sealed class DictationController : IDisposable
                 Interlocked.Add(ref lastInputLength, -erased);
                 break;
             default:
-                OutputText(text, typeText, cancellationToken);
+                OutputText([text], typeText, cancellationToken);
                 break;
         }
     }
 
-    private void OutputText(string text, bool typeText, CancellationToken cancellationToken)
+    private void OutputText(IReadOnlyList<string> texts, bool typeText, CancellationToken cancellationToken)
     {
         if (!typeText)
         {
-            ClipboardWriter.SetText(text, cancellationToken);
+            ClipboardWriter.SetText(string.Join(Environment.NewLine, texts), cancellationToken);
             ConsoleLog.Event("Copied to clipboard");
             return;
         }
 
-        var typed = typer.TypeText(text, cancellationToken);
-        RememberInput(typed + typer.PressKey(VirtualKey.Enter, 1, cancellationToken));
+        var sent = 0;
+        foreach (var text in texts)
+        {
+            sent += typer.TypeText(text, cancellationToken);
+            sent += typer.PressKey(VirtualKey.Enter, 1, cancellationToken);
+        }
+
+        RememberInput(sent);
     }
 
     private void RememberInput(int sent)

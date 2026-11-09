@@ -5,7 +5,6 @@ using Speecher.Dictation;
 using Speecher.Hotkeys;
 using Speecher.Speech;
 using Speecher.Taskbar;
-using Speecher.Transcription;
 
 namespace Speecher.App;
 
@@ -16,6 +15,7 @@ public sealed class SpeecherApp : IDisposable
     private HotkeyListener? hotkeyListener;
     private HotkeyListener? typeTextHotkeyListener;
     private HotkeyListener? systemAudioHotkeyListener;
+    private HotkeyListener? transcribeFilesHotkeyListener;
     private ISpeechTranscriber? transcriber;
     private DictationController? controller;
     private TaskbarBadge? taskbarBadge;
@@ -53,6 +53,7 @@ public sealed class SpeecherApp : IDisposable
         hotkeyListener?.Dispose();
         typeTextHotkeyListener?.Dispose();
         systemAudioHotkeyListener?.Dispose();
+        transcribeFilesHotkeyListener?.Dispose();
         DisposeQuietly(transcriber);
         downloader.Dispose();
         shutdown.MarkCleanupCompleted();
@@ -61,27 +62,29 @@ public sealed class SpeecherApp : IDisposable
 
     private async Task RunAsync(string[] args, CancellationToken cancellationToken)
     {
-        var options = LaunchOptions.Parse(args);
-        var settings = LoadSettings();
-        if (options.TranscribeFiles)
+        if (args.Length > 0)
         {
-            await RunFileTranscriptionAsync(settings, cancellationToken);
-            return;
+            throw new StartupException($"Unknown command line argument \"{args[0]}\".");
         }
 
-        JumpList.Register();
+        var settings = LoadSettings();
+        JumpList.Clear();
         ListMicrophones(settings.MicrophoneName);
 
         var hotkey = ParseHotkey(nameof(AppSettings.Hotkey), settings.Hotkey);
         var typeTextHotkey = ParseHotkey(nameof(AppSettings.TypeTextHotkey), settings.TypeTextHotkey);
         var systemAudioHotkey = ParseHotkey(nameof(AppSettings.SystemAudioHotkey), settings.SystemAudioHotkey);
-        EnsureDistinct(nameof(AppSettings.Hotkey), hotkey, nameof(AppSettings.TypeTextHotkey), typeTextHotkey);
-        EnsureDistinct(nameof(AppSettings.Hotkey), hotkey, nameof(AppSettings.SystemAudioHotkey), systemAudioHotkey);
-        EnsureDistinct(nameof(AppSettings.TypeTextHotkey), typeTextHotkey, nameof(AppSettings.SystemAudioHotkey), systemAudioHotkey);
+        var transcribeFilesHotkey = ParseHotkey(nameof(AppSettings.TranscribeFilesHotkey), settings.TranscribeFilesHotkey);
+        EnsureDistinct(
+            (nameof(AppSettings.Hotkey), hotkey),
+            (nameof(AppSettings.TypeTextHotkey), typeTextHotkey),
+            (nameof(AppSettings.SystemAudioHotkey), systemAudioHotkey),
+            (nameof(AppSettings.TranscribeFilesHotkey), transcribeFilesHotkey));
 
         hotkeyListener = RegisterHotkey(hotkey);
         typeTextHotkeyListener = RegisterHotkey(typeTextHotkey);
         systemAudioHotkeyListener = RegisterHotkey(systemAudioHotkey);
+        transcribeFilesHotkeyListener = RegisterHotkey(transcribeFilesHotkey);
 
         var loadedTranscriber = await LoadTranscriberAsync(settings, cancellationToken);
 
@@ -96,23 +99,10 @@ public sealed class SpeecherApp : IDisposable
         hotkeyListener.Pressed += controller.OnHotkey;
         typeTextHotkeyListener.Pressed += controller.OnTypeTextHotkey;
         systemAudioHotkeyListener.Pressed += controller.OnSystemAudioHotkey;
-        ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, {typeTextHotkey.DisplayName} to type the next phrase instead of copying it, {systemAudioHotkey.DisplayName} to record system audio next time, Ctrl+C to exit.");
+        transcribeFilesHotkeyListener.Pressed += controller.OnTranscribeFilesHotkey;
+        ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, {typeTextHotkey.DisplayName} to type the next phrase instead of copying it, {systemAudioHotkey.DisplayName} to record system audio next time, {transcribeFilesHotkey.DisplayName} to transcribe audio files, Ctrl+C to exit.");
 
         await Task.Delay(Timeout.Infinite, cancellationToken);
-    }
-
-    private async Task RunFileTranscriptionAsync(AppSettings settings, CancellationToken cancellationToken)
-    {
-        if (!Console.IsInputRedirected)
-        {
-            Console.InputEncoding = Encoding.Unicode;
-        }
-
-        JumpList.Register();
-        ConsoleLog.Info("Mode: file transcription");
-        var loadedTranscriber = await LoadTranscriberAsync(settings, cancellationToken);
-        ConsoleLog.Info("Ready. Enter a path to an audio file or a directory, Ctrl+C to exit.");
-        await new FileTranscriptionConsole(loadedTranscriber).RunAsync(cancellationToken);
     }
 
     private async Task<ISpeechTranscriber> LoadTranscriberAsync(AppSettings settings, CancellationToken cancellationToken)
@@ -195,11 +185,17 @@ public sealed class SpeecherApp : IDisposable
         return hotkey;
     }
 
-    private static void EnsureDistinct(string firstName, HotkeyDefinition first, string secondName, HotkeyDefinition second)
+    private static void EnsureDistinct(params (string Name, HotkeyDefinition Hotkey)[] hotkeys)
     {
-        if (first.Modifiers == second.Modifiers && first.Key == second.Key)
+        for (var i = 0; i < hotkeys.Length; i++)
         {
-            throw new StartupException($"settings.json: {firstName} and {secondName} must differ.");
+            for (var j = i + 1; j < hotkeys.Length; j++)
+            {
+                if (hotkeys[i].Hotkey.Modifiers == hotkeys[j].Hotkey.Modifiers && hotkeys[i].Hotkey.Key == hotkeys[j].Hotkey.Key)
+                {
+                    throw new StartupException($"settings.json: {hotkeys[i].Name} and {hotkeys[j].Name} must differ.");
+                }
+            }
         }
     }
 
