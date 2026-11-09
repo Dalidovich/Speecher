@@ -11,7 +11,6 @@ public sealed class DictationController : IDisposable
 {
     private readonly object sync = new();
     private readonly AppSettings settings;
-    private readonly bool voiceCommandsEnabled;
     private readonly AudioRecorder recorder;
     private readonly ISpeechTranscriber transcriber;
     private readonly KeyboardTyper typer = new();
@@ -25,14 +24,15 @@ public sealed class DictationController : IDisposable
     private CancellationTokenSource? operation;
     private int lastInputLength;
     private bool typeTextArmed;
+    private bool systemAudioArmed;
+    private AudioSource recordingSource;
     private bool disposed;
 
-    public DictationController(AppSettings settings, AudioSource audioSource, ISpeechTranscriber transcriber)
+    public DictationController(AppSettings settings, ISpeechTranscriber transcriber)
     {
         this.settings = settings;
         this.transcriber = transcriber;
-        voiceCommandsEnabled = audioSource == AudioSource.Microphone;
-        recorder = new AudioRecorder(audioSource, settings.MicrophoneName);
+        recorder = new AudioRecorder(settings.MicrophoneName);
         commandMatcher = new VoiceCommandMatcher(settings.VoiceCommands);
         scriptMatcher = new ScriptTriggerMatcher(settings.ScriptTriggers);
     }
@@ -85,6 +85,20 @@ public sealed class DictationController : IDisposable
         }
     }
 
+    public void OnSystemAudioHotkey()
+    {
+        lock (sync)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            systemAudioArmed = !systemAudioArmed;
+            ConsoleLog.Event(systemAudioArmed ? "System audio armed for the next recording" : "System audio disarmed");
+        }
+    }
+
     public void Dispose()
     {
         lock (sync)
@@ -100,11 +114,20 @@ public sealed class DictationController : IDisposable
     private void StartRecording()
     {
         var id = generation + 1;
+        var source = systemAudioArmed ? AudioSource.System : AudioSource.Microphone;
         session = recorder.Start(
+            source,
             settings.MaxRecordingSeconds,
             () => OnMaxDurationReached(id),
             exception => OnRecordingFaulted(id, exception));
         generation = id;
+        systemAudioArmed = false;
+        recordingSource = source;
+        if (source == AudioSource.System)
+        {
+            ConsoleLog.Event($"Capturing system audio from: {AudioDeviceCatalog.FindDefaultOutputName()}");
+        }
+
         SetState(DictationState.Recording);
     }
 
@@ -146,7 +169,8 @@ public sealed class DictationController : IDisposable
         StateChanged?.Invoke(state);
         var id = generation;
         var typeText = TakeTypeTextFlag();
-        _ = Task.Run(() => ProcessRecordingAsync(recording, id, typeText, cancellation.Token));
+        var voiceCommandsEnabled = recordingSource == AudioSource.Microphone;
+        _ = Task.Run(() => ProcessRecordingAsync(recording, id, typeText, voiceCommandsEnabled, cancellation.Token));
     }
 
     private void CancelOperation()
@@ -177,7 +201,7 @@ public sealed class DictationController : IDisposable
         SetState(DictationState.Idle);
     }
 
-    private async Task ProcessRecordingAsync(RecordingSession recording, long id, bool typeText, CancellationToken cancellationToken)
+    private async Task ProcessRecordingAsync(RecordingSession recording, long id, bool typeText, bool voiceCommandsEnabled, CancellationToken cancellationToken)
     {
         try
         {

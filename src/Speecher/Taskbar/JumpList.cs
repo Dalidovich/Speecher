@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using Speecher.App;
-using Speecher.Configuration;
 using Speecher.Interop;
 
 namespace Speecher.Taskbar;
@@ -9,8 +8,6 @@ public static class JumpList
 {
     private static readonly (string Title, string Arguments)[] Tasks =
     [
-        ("Copy to clipboard", $"{LaunchOptions.SourceArgument} {AudioSource.Microphone}"),
-        ("System audio to clipboard", $"{LaunchOptions.SourceArgument} {AudioSource.System}"),
         ("Transcribe files", LaunchOptions.FilesArgument)
     ];
 

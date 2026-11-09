@@ -3,9 +3,9 @@ using Speecher.Configuration;
 
 namespace Speecher.Audio;
 
-public sealed class AudioRecorder(AudioSource source, string microphoneName)
+public sealed class AudioRecorder(string microphoneName)
 {
-    public RecordingSession Start(double maxSeconds, Action onMaxDurationReached, Action<Exception> onFaulted)
+    public RecordingSession Start(AudioSource source, double maxSeconds, Action onMaxDurationReached, Action<Exception> onFaulted)
     {
         var loopback = source == AudioSource.System;
         var device = ResolveDevice(loopback);

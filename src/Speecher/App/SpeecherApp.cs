@@ -15,6 +15,7 @@ public sealed class SpeecherApp : IDisposable
     private readonly FileDownloader downloader = new();
     private HotkeyListener? hotkeyListener;
     private HotkeyListener? typeTextHotkeyListener;
+    private HotkeyListener? systemAudioHotkeyListener;
     private ISpeechTranscriber? transcriber;
     private DictationController? controller;
     private TaskbarBadge? taskbarBadge;
@@ -51,6 +52,7 @@ public sealed class SpeecherApp : IDisposable
         taskbarBadge?.Dispose();
         hotkeyListener?.Dispose();
         typeTextHotkeyListener?.Dispose();
+        systemAudioHotkeyListener?.Dispose();
         DisposeQuietly(transcriber);
         downloader.Dispose();
         shutdown.MarkCleanupCompleted();
@@ -68,29 +70,22 @@ public sealed class SpeecherApp : IDisposable
         }
 
         JumpList.Register();
-        ConsoleLog.Info($"Audio source: {options.AudioSource}");
-        if (options.AudioSource == AudioSource.System)
-        {
-            ShowOutputDevice();
-        }
-        else
-        {
-            ListMicrophones(settings.MicrophoneName);
-        }
+        ListMicrophones(settings.MicrophoneName);
 
         var hotkey = ParseHotkey(nameof(AppSettings.Hotkey), settings.Hotkey);
         var typeTextHotkey = ParseHotkey(nameof(AppSettings.TypeTextHotkey), settings.TypeTextHotkey);
-        if (hotkey.Modifiers == typeTextHotkey.Modifiers && hotkey.Key == typeTextHotkey.Key)
-        {
-            throw new StartupException($"settings.json: {nameof(AppSettings.Hotkey)} and {nameof(AppSettings.TypeTextHotkey)} must differ.");
-        }
+        var systemAudioHotkey = ParseHotkey(nameof(AppSettings.SystemAudioHotkey), settings.SystemAudioHotkey);
+        EnsureDistinct(nameof(AppSettings.Hotkey), hotkey, nameof(AppSettings.TypeTextHotkey), typeTextHotkey);
+        EnsureDistinct(nameof(AppSettings.Hotkey), hotkey, nameof(AppSettings.SystemAudioHotkey), systemAudioHotkey);
+        EnsureDistinct(nameof(AppSettings.TypeTextHotkey), typeTextHotkey, nameof(AppSettings.SystemAudioHotkey), systemAudioHotkey);
 
         hotkeyListener = RegisterHotkey(hotkey);
         typeTextHotkeyListener = RegisterHotkey(typeTextHotkey);
+        systemAudioHotkeyListener = RegisterHotkey(systemAudioHotkey);
 
         var loadedTranscriber = await LoadTranscriberAsync(settings, cancellationToken);
 
-        controller = new DictationController(settings, options.AudioSource, loadedTranscriber);
+        controller = new DictationController(settings, loadedTranscriber);
         taskbarBadge = TaskbarBadge.Attach();
         if (taskbarBadge is not null)
         {
@@ -100,7 +95,8 @@ public sealed class SpeecherApp : IDisposable
 
         hotkeyListener.Pressed += controller.OnHotkey;
         typeTextHotkeyListener.Pressed += controller.OnTypeTextHotkey;
-        ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, {typeTextHotkey.DisplayName} to type the next phrase instead of copying it, Ctrl+C to exit.");
+        systemAudioHotkeyListener.Pressed += controller.OnSystemAudioHotkey;
+        ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, {typeTextHotkey.DisplayName} to type the next phrase instead of copying it, {systemAudioHotkey.DisplayName} to record system audio next time, Ctrl+C to exit.");
 
         await Task.Delay(Timeout.Infinite, cancellationToken);
     }
@@ -156,13 +152,6 @@ public sealed class SpeecherApp : IDisposable
         return settings;
     }
 
-    private static void ShowOutputDevice()
-    {
-        var name = AudioDeviceCatalog.FindDefaultOutputName()
-            ?? throw new StartupException("No output devices found.");
-        ConsoleLog.Info($"Capturing the system default output device, currently: {name}");
-    }
-
     private static void ListMicrophones(string microphoneName)
     {
         var devices = AudioDeviceCatalog.ListCaptureDevices();
@@ -204,6 +193,14 @@ public sealed class SpeecherApp : IDisposable
         }
 
         return hotkey;
+    }
+
+    private static void EnsureDistinct(string firstName, HotkeyDefinition first, string secondName, HotkeyDefinition second)
+    {
+        if (first.Modifiers == second.Modifiers && first.Key == second.Key)
+        {
+            throw new StartupException($"settings.json: {firstName} and {secondName} must differ.");
+        }
     }
 
     private static HotkeyListener RegisterHotkey(HotkeyDefinition hotkey)
