@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 using Speecher.App;
 using Speecher.Configuration;
 
@@ -7,6 +9,8 @@ namespace Speecher.Dictation;
 
 public static class ScriptLauncher
 {
+    private static readonly Lazy<Encoding> ConsoleOutputEncoding = new(CreateConsoleOutputEncoding);
+
     public static void Launch(ScriptRule rule)
     {
         if (string.IsNullOrWhiteSpace(rule.Command))
@@ -47,12 +51,22 @@ public static class ScriptLauncher
         startInfo.UseShellExecute = false;
         startInfo.CreateNoWindow = true;
         startInfo.WorkingDirectory = PortablePaths.Root;
+        startInfo.RedirectStandardInput = true;
+        startInfo.RedirectStandardOutput = true;
+        startInfo.RedirectStandardError = true;
+        startInfo.StandardOutputEncoding = ConsoleOutputEncoding.Value;
+        startInfo.StandardErrorEncoding = ConsoleOutputEncoding.Value;
 
         try
         {
             var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+            process.OutputDataReceived += (_, e) => WriteOutputLine(e.Data);
+            process.ErrorDataReceived += (_, e) => WriteErrorLine(e.Data);
             process.Exited += (_, _) => ReportExit(process, command);
             process.Start();
+            process.StandardInput.Close();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
             ConsoleLog.Event($"{shell} command started: {command}");
         }
         catch (Win32Exception ex)
@@ -74,10 +88,33 @@ public static class ScriptLauncher
         return new ProcessStartInfo("cmd.exe", $"/d /s /c \"{command}\"");
     }
 
+    private static Encoding CreateConsoleOutputEncoding()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        return Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage);
+    }
+
+    private static void WriteOutputLine(string? line)
+    {
+        if (line is not null)
+        {
+            ConsoleLog.Info($"  > {line}");
+        }
+    }
+
+    private static void WriteErrorLine(string? line)
+    {
+        if (line is not null)
+        {
+            ConsoleLog.Info($"  ! {line}");
+        }
+    }
+
     private static void ReportExit(Process process, string command)
     {
         using (process)
         {
+            process.WaitForExit();
             if (process.ExitCode != 0)
             {
                 ConsoleLog.Warning($"Command exited with code {process.ExitCode}: {command}");
