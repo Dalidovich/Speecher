@@ -89,11 +89,13 @@ public sealed class SpeecherApp : IDisposable
         var loadedTranscriber = await LoadTranscriberAsync(settings, cancellationToken);
 
         controller = new DictationController(settings, loadedTranscriber);
+        controller.IndicatorChanged += WindowTitle.Show;
+        WindowTitle.Show(DictationIndicator.Initial);
         taskbarBadge = TaskbarBadge.Attach();
         if (taskbarBadge is not null)
         {
-            controller.StateChanged += taskbarBadge.Show;
-            taskbarBadge.Show(DictationState.Idle);
+            controller.IndicatorChanged += taskbarBadge.Show;
+            taskbarBadge.Show(DictationIndicator.Initial);
         }
 
         hotkeyListener.Pressed += controller.OnHotkey;

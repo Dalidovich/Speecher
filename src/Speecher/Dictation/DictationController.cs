@@ -39,7 +39,7 @@ public sealed class DictationController : IDisposable
         scriptMatcher = new ScriptTriggerMatcher(settings.ScriptTriggers);
     }
 
-    public event Action<DictationState>? StateChanged;
+    public event Action<DictationIndicator>? IndicatorChanged;
 
     public void OnHotkey()
     {
@@ -84,6 +84,7 @@ public sealed class DictationController : IDisposable
 
             typeTextArmed = !typeTextArmed;
             ConsoleLog.Event(typeTextArmed ? "Type text armed for the next recording" : "Type text disarmed");
+            PublishIndicator();
         }
     }
 
@@ -98,6 +99,7 @@ public sealed class DictationController : IDisposable
 
             systemAudioArmed = !systemAudioArmed;
             ConsoleLog.Event(systemAudioArmed ? "System audio armed for the next recording" : "System audio disarmed");
+            PublishIndicator();
         }
     }
 
@@ -188,10 +190,10 @@ public sealed class DictationController : IDisposable
         session = null;
         var cancellation = new CancellationTokenSource();
         operation = cancellation;
-        state = DictationState.Transcribing;
-        StateChanged?.Invoke(state);
-        var id = generation;
         var typeText = TakeTypeTextFlag();
+        state = DictationState.Transcribing;
+        PublishIndicator();
+        var id = generation;
         var voiceCommandsEnabled = recordingSource == AudioSource.Microphone;
         _ = Task.Run(() => ProcessRecordingAsync(recording, id, typeText, voiceCommandsEnabled, cancellation.Token));
     }
@@ -525,6 +527,9 @@ public sealed class DictationController : IDisposable
     {
         state = next;
         ConsoleLog.Event(next == DictationState.Idle ? "Idle" : $"{next}...");
-        StateChanged?.Invoke(next);
+        PublishIndicator();
     }
+
+    private void PublishIndicator() =>
+        IndicatorChanged?.Invoke(new DictationIndicator(state, recordingSource, typeTextArmed, systemAudioArmed));
 }

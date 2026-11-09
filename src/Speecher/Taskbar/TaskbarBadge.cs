@@ -12,7 +12,7 @@ public sealed class TaskbarBadge : IDisposable
     private const uint Red = 0xE53935;
     private const uint Yellow = 0xFDD835;
 
-    private readonly BlockingCollection<DictationState> pending = new();
+    private readonly BlockingCollection<DictationIndicator> pending = new();
     private readonly Thread thread;
 
     private TaskbarBadge(nint window)
@@ -28,11 +28,11 @@ public sealed class TaskbarBadge : IDisposable
         return window == 0 ? null : new TaskbarBadge(window);
     }
 
-    public void Show(DictationState state)
+    public void Show(DictationIndicator indicator)
     {
         try
         {
-            pending.TryAdd(state);
+            pending.TryAdd(indicator);
         }
         catch (InvalidOperationException)
         {
@@ -48,15 +48,22 @@ public sealed class TaskbarBadge : IDisposable
     private void Run(nint window)
     {
         var size = User32.GetSystemMetrics(User32.SmCxSmIcon);
-        var icons = Enum.GetValues<DictationState>().ToDictionary(state => state, state => BadgeIcon.CreateCircle(size, ColorOf(state)));
+        var icons = new Dictionary<BadgeLook, nint>();
         ITaskbarList3? taskbar = null;
         try
         {
             taskbar = (ITaskbarList3)new TaskbarListClass();
             taskbar.HrInit();
-            foreach (var state in pending.GetConsumingEnumerable())
+            foreach (var indicator in pending.GetConsumingEnumerable())
             {
-                taskbar.SetOverlayIcon(window, icons[state], state.ToString());
+                var look = BadgeLook.Of(indicator);
+                if (!icons.TryGetValue(look, out var icon))
+                {
+                    icon = BadgeIcon.Create(size, ColorOf(look.State), look.Square, look.Dot);
+                    icons[look] = icon;
+                }
+
+                taskbar.SetOverlayIcon(window, icon, indicator.State.ToString());
             }
 
             taskbar.SetOverlayIcon(window, 0, null);
@@ -85,4 +92,10 @@ public sealed class TaskbarBadge : IDisposable
         DictationState.Recording => Red,
         _ => Yellow
     };
+
+    private readonly record struct BadgeLook(DictationState State, bool Square, bool Dot)
+    {
+        public static BadgeLook Of(DictationIndicator indicator) =>
+            new(indicator.State, indicator.ShowsSystemAudio, indicator.TypeTextArmed);
+    }
 }
