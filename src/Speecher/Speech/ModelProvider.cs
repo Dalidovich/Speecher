@@ -20,7 +20,6 @@ public static class ModelProvider
         try
         {
             Directory.CreateDirectory(PortablePaths.ModelsDirectory);
-            FileDownloader.DeletePartial(modelPath);
             await downloader.DownloadAsync(ModelUrl, modelPath, null, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)

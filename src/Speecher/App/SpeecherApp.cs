@@ -68,7 +68,6 @@ public sealed class SpeecherApp : IDisposable
         }
 
         var settings = LoadSettings();
-        JumpList.Clear();
         ListMicrophones(settings.MicrophoneName);
 
         var hotkey = ParseHotkey(nameof(AppSettings.Hotkey), settings.Hotkey);

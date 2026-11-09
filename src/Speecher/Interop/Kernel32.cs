@@ -6,7 +6,6 @@ internal static partial class Kernel32
 {
     public const uint CtrlCEvent = 0;
     public const uint CtrlBreakEvent = 1;
-    public const uint CtrlCloseEvent = 2;
 
     public const uint GmemMoveable = 0x0002;
 

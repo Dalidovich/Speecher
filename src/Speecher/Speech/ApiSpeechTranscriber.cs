@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Speecher.Configuration;
-using Speecher.Transcription;
 
 namespace Speecher.Speech;
 

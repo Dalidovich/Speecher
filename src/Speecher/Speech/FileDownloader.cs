@@ -8,8 +8,6 @@ public sealed class FileDownloader : IDisposable
 
     private readonly HttpClient client = new() { Timeout = Timeout.InfiniteTimeSpan };
 
-    public static void DeletePartial(string targetPath) => DeleteIfExists(targetPath + PartialSuffix);
-
     public async Task<string> GetStringAsync(string url, CancellationToken cancellationToken)
     {
         return await client.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
