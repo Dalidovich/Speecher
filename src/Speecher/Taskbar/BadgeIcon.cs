@@ -9,8 +9,9 @@ internal static class BadgeIcon
     private const int BytesPerPixel = 4;
     private const float CornerShare = 0.35f;
     private const float DotShare = 0.22f;
+    private const uint White = 0xFFFFFF;
 
-    public static nint Create(int size, uint rgb, bool square, bool dot)
+    public static nint Create(int size, uint rgb, bool square, bool dot, uint? borderRgb)
     {
         var pixelBytes = size * size * BytesPerPixel;
         var maskBytes = (size + 31) / 32 * 4 * size;
@@ -18,7 +19,8 @@ internal static class BadgeIcon
         WriteHeader(image, size);
 
         var half = size / 2f;
-        var border = Math.Max(1f, size / 16f);
+        var border = borderRgb is null ? Math.Max(1f, size / 16f) : Math.Max(2f, size / 8f);
+        var ring = borderRgb ?? White;
         var dotRadius = size * DotShare;
         for (var y = 0; y < size; y++)
         {
@@ -29,11 +31,15 @@ internal static class BadgeIcon
                 var outer = Coverage(ShapeDistance(dx, dy, half, square));
                 var inner = Coverage(ShapeDistance(dx, dy, half - border, square));
                 var hole = dot ? Coverage(CircleDistance(dx, dy, dotRadius)) : 0f;
-                var fill = inner * (1f - hole);
+                var body = 1f - hole;
                 var offset = HeaderSize + (y * size + x) * BytesPerPixel;
-                image[offset] = TintFromWhite(rgb & 0xFF, fill);
-                image[offset + 1] = TintFromWhite((rgb >> 8) & 0xFF, fill);
-                image[offset + 2] = TintFromWhite((rgb >> 16) & 0xFF, fill);
+                for (var channel = 0; channel < 3; channel++)
+                {
+                    var shift = channel * 8;
+                    var bodyValue = Blend(White >> shift & 0xFF, rgb >> shift & 0xFF, body);
+                    image[offset + channel] = (byte)MathF.Round(Blend(ring >> shift & 0xFF, bodyValue, inner));
+                }
+
                 image[offset + 3] = (byte)MathF.Round(outer * 255f);
             }
         }
@@ -67,5 +73,5 @@ internal static class BadgeIcon
 
     private static float Coverage(float distance) => Math.Clamp(0.5f - distance, 0f, 1f);
 
-    private static byte TintFromWhite(uint channel, float weight) => (byte)MathF.Round(255f + (channel - 255f) * weight);
+    private static float Blend(float from, float to, float weight) => from + (to - from) * weight;
 }

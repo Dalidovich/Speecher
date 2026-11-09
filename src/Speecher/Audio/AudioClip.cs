@@ -10,6 +10,12 @@ public sealed class AudioClip(float[] samples)
 
     public double DurationSeconds => (double)Samples.Length / SampleRate;
 
+    public AudioClip WithoutTail(double seconds)
+    {
+        var keep = Math.Max(0, Samples.Length - (int)(seconds * SampleRate));
+        return keep == Samples.Length ? this : new AudioClip(Samples[..keep]);
+    }
+
     public double PeakWindowLevelDbfs()
     {
         double maxMeanSquare = 0;

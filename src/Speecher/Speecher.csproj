@@ -27,6 +27,7 @@
   <ItemGroup>
     <PackageReference Include="Concentus" Version="2.2.2" />
     <PackageReference Include="Concentus.Oggfile" Version="1.0.7" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.31.1" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
@@ -34,9 +35,20 @@
     <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="WakeWordModels\**\*" />
+    <None Include="WakeWordModels\**\*" Link="wakeword\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
   <Target Name="RemoveForeignWhisperRuntimes" BeforeTargets="AssignTargetPaths">
     <ItemGroup>
       <None Remove="@(None)" Condition="$([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/win-x86/')) Or $([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/win-arm64/')) Or $([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/vulkan/linux-x64/'))" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="RemoveNativeImportLibraries" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)" Condition="'%(Extension)' == '.lib'" />
     </ItemGroup>
   </Target>
 

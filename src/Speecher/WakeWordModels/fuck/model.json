@@ -1,0 +1,12 @@
+{
+  "name": "fuck",
+  "wakePhrase": "fuck",
+  "classifierFile": "fuck.onnx",
+  "melspectrogramFile": "melspectrogram.onnx",
+  "embeddingFile": "embedding_model.onnx",
+  "sampleRate": 16000,
+  "chunkSamples": 1280,
+  "embeddingWindow": 16,
+  "recommendedThreshold": 0.5,
+  "trainedAtUtc": "2026-11-08T19:56:57Z"
+}

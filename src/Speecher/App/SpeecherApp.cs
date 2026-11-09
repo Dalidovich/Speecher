@@ -5,6 +5,7 @@ using Speecher.Dictation;
 using Speecher.Hotkeys;
 using Speecher.Speech;
 using Speecher.Taskbar;
+using Speecher.WakeWord;
 
 namespace Speecher.App;
 
@@ -16,6 +17,8 @@ public sealed class SpeecherApp : IDisposable
     private HotkeyListener? typeTextHotkeyListener;
     private HotkeyListener? systemAudioHotkeyListener;
     private HotkeyListener? transcribeFilesHotkeyListener;
+    private HotkeyListener? wakeWordHotkeyListener;
+    private WakeWordListener? wakeWordListener;
     private ISpeechTranscriber? transcriber;
     private DictationController? controller;
     private TaskbarBadge? taskbarBadge;
@@ -54,6 +57,8 @@ public sealed class SpeecherApp : IDisposable
         typeTextHotkeyListener?.Dispose();
         systemAudioHotkeyListener?.Dispose();
         transcribeFilesHotkeyListener?.Dispose();
+        wakeWordHotkeyListener?.Dispose();
+        DisposeQuietly(wakeWordListener);
         DisposeQuietly(transcriber);
         downloader.Dispose();
         shutdown.MarkCleanupCompleted();
@@ -74,20 +79,24 @@ public sealed class SpeecherApp : IDisposable
         var typeTextHotkey = ParseHotkey(nameof(AppSettings.TypeTextHotkey), settings.TypeTextHotkey);
         var systemAudioHotkey = ParseHotkey(nameof(AppSettings.SystemAudioHotkey), settings.SystemAudioHotkey);
         var transcribeFilesHotkey = ParseHotkey(nameof(AppSettings.TranscribeFilesHotkey), settings.TranscribeFilesHotkey);
+        var wakeWordHotkey = ParseHotkey(nameof(AppSettings.WakeWordHotkey), settings.WakeWordHotkey);
         EnsureDistinct(
             (nameof(AppSettings.Hotkey), hotkey),
             (nameof(AppSettings.TypeTextHotkey), typeTextHotkey),
             (nameof(AppSettings.SystemAudioHotkey), systemAudioHotkey),
-            (nameof(AppSettings.TranscribeFilesHotkey), transcribeFilesHotkey));
+            (nameof(AppSettings.TranscribeFilesHotkey), transcribeFilesHotkey),
+            (nameof(AppSettings.WakeWordHotkey), wakeWordHotkey));
 
         hotkeyListener = RegisterHotkey(hotkey);
         typeTextHotkeyListener = RegisterHotkey(typeTextHotkey);
         systemAudioHotkeyListener = RegisterHotkey(systemAudioHotkey);
         transcribeFilesHotkeyListener = RegisterHotkey(transcribeFilesHotkey);
+        wakeWordHotkeyListener = RegisterHotkey(wakeWordHotkey);
 
         var loadedTranscriber = await LoadTranscriberAsync(settings, cancellationToken);
+        wakeWordListener = LoadWakeWordListener(settings);
 
-        controller = new DictationController(settings, loadedTranscriber);
+        controller = new DictationController(settings, loadedTranscriber, wakeWordListener);
         controller.IndicatorChanged += WindowTitle.Show;
         WindowTitle.Show(DictationIndicator.Initial);
         taskbarBadge = TaskbarBadge.Attach();
@@ -101,7 +110,9 @@ public sealed class SpeecherApp : IDisposable
         typeTextHotkeyListener.Pressed += controller.OnTypeTextHotkey;
         systemAudioHotkeyListener.Pressed += controller.OnSystemAudioHotkey;
         transcribeFilesHotkeyListener.Pressed += controller.OnTranscribeFilesHotkey;
-        ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, {typeTextHotkey.DisplayName} to type the next phrase instead of copying it, {systemAudioHotkey.DisplayName} to record system audio next time, {transcribeFilesHotkey.DisplayName} to transcribe audio files, Ctrl+C to exit.");
+        wakeWordHotkeyListener.Pressed += controller.OnWakeWordHotkey;
+        ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, {typeTextHotkey.DisplayName} to type the next phrase instead of copying it, {systemAudioHotkey.DisplayName} to record system audio next time, {transcribeFilesHotkey.DisplayName} to transcribe audio files, {wakeWordHotkey.DisplayName} to toggle wake word listening, Ctrl+C to exit.");
+        controller.RestoreWakeWordListening();
 
         await Task.Delay(Timeout.Infinite, cancellationToken);
     }
@@ -129,6 +140,23 @@ public sealed class SpeecherApp : IDisposable
         transcriber = SpeechTranscriber.Load(modelPath, settings);
         ConsoleLog.Info($"Backend: {transcriber.Backend}");
         return transcriber;
+    }
+
+    private static WakeWordListener? LoadWakeWordListener(AppSettings settings)
+    {
+        try
+        {
+            var model = WakeWordModel.Load(PortablePaths.WakeWordDirectory(settings.WakeWordModel));
+            var listener = WakeWordListener.Load(model, settings.WakeWordThreshold, settings.MicrophoneName);
+            var phrase = string.IsNullOrWhiteSpace(model.Manifest.WakePhrase) ? model.Name : model.Manifest.WakePhrase;
+            ConsoleLog.Info($"Wake word: \"{phrase}\"");
+            return listener;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or DllNotFoundException or TypeInitializationException or Microsoft.ML.OnnxRuntime.OnnxRuntimeException)
+        {
+            ConsoleLog.Warning($"Wake word is unavailable: {ConsoleLog.Describe(ex)}");
+            return null;
+        }
     }
 
     private static AppSettings LoadSettings()

@@ -61,7 +61,7 @@ public static class SettingsStore
         }
     }
 
-    private static void Save(AppSettings settings, string failureMessage)
+    public static void Save(AppSettings settings, string failureMessage)
     {
         try
         {

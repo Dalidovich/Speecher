@@ -32,6 +32,11 @@ public static class WindowTitle
             parts.Add("[System audio]");
         }
 
+        if (indicator.WakeWordListening)
+        {
+            parts.Add("[Listening]");
+        }
+
         return string.Join(Separator, parts);
     }
 

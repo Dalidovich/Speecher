@@ -5,6 +5,7 @@ using Speecher.Hotkeys;
 using Speecher.Input;
 using Speecher.Speech;
 using Speecher.Transcription;
+using Speecher.WakeWord;
 
 namespace Speecher.Dictation;
 
@@ -18,6 +19,8 @@ public sealed class DictationController : IDisposable
     private readonly VoiceCommandMatcher commandMatcher;
     private readonly ScriptTriggerMatcher scriptMatcher;
     private readonly HistoryWriter history = new();
+    private readonly WakeWordListener? wakeWordListener;
+    private readonly WakeWordPhraseStripper wakeWordStripper;
 
     private DictationState state = DictationState.Idle;
     private long generation;
@@ -28,15 +31,24 @@ public sealed class DictationController : IDisposable
     private bool systemAudioArmed;
     private bool filePickerOpen;
     private AudioSource recordingSource;
+    private bool recordingStartedByWakeWord;
+    private bool listening;
     private bool disposed;
 
-    public DictationController(AppSettings settings, ISpeechTranscriber transcriber)
+    public DictationController(AppSettings settings, ISpeechTranscriber transcriber, WakeWordListener? wakeWordListener)
     {
         this.settings = settings;
         this.transcriber = transcriber;
+        this.wakeWordListener = wakeWordListener;
         recorder = new AudioRecorder(settings.MicrophoneName);
         commandMatcher = new VoiceCommandMatcher(settings.VoiceCommands);
         scriptMatcher = new ScriptTriggerMatcher(settings.ScriptTriggers);
+        wakeWordStripper = new WakeWordPhraseStripper(settings.WakeWordPhrases);
+        if (wakeWordListener is not null)
+        {
+            wakeWordListener.Detected += OnWakeWord;
+            wakeWordListener.Faulted += OnWakeWordFaulted;
+        }
     }
 
     public event Action<DictationIndicator>? IndicatorChanged;
@@ -55,10 +67,10 @@ public sealed class DictationController : IDisposable
                 switch (state)
                 {
                     case DictationState.Idle:
-                        StartRecording();
+                        StartRecording(startedByWakeWord: false);
                         break;
                     case DictationState.Recording:
-                        FinishRecording();
+                        FinishRecording(stoppedByWakeWord: false);
                         break;
                     default:
                         CancelOperation();
@@ -103,6 +115,60 @@ public sealed class DictationController : IDisposable
         }
     }
 
+    public void OnWakeWordHotkey()
+    {
+        lock (sync)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            if (wakeWordListener is null)
+            {
+                ConsoleLog.Event("Wake word listening is unavailable: the wake word model was not loaded");
+                return;
+            }
+
+            if (listening)
+            {
+                wakeWordListener.Stop();
+                listening = false;
+                ConsoleLog.Event("Wake word listening off");
+            }
+            else if (!TryStartListening())
+            {
+                return;
+            }
+
+            settings.WakeWordListening = listening;
+            SettingsStore.Save(settings, "wake word listening state was not saved");
+            PublishIndicator();
+        }
+    }
+
+    public void RestoreWakeWordListening()
+    {
+        lock (sync)
+        {
+            if (disposed || listening || !settings.WakeWordListening)
+            {
+                return;
+            }
+
+            if (wakeWordListener is null)
+            {
+                ConsoleLog.Warning("Wake word listening was on, but the wake word model was not loaded.");
+                return;
+            }
+
+            if (TryStartListening())
+            {
+                PublishIndicator();
+            }
+        }
+    }
+
     public void OnTranscribeFilesHotkey()
     {
         lock (sync)
@@ -133,10 +199,73 @@ public sealed class DictationController : IDisposable
             operation?.Cancel();
             session?.Dispose();
             session = null;
+            wakeWordListener?.Stop();
+            listening = false;
         }
     }
 
-    private void StartRecording()
+    private bool TryStartListening()
+    {
+        try
+        {
+            wakeWordListener!.Start();
+            listening = true;
+            ConsoleLog.Event($"Wake word listening on, threshold {wakeWordListener.Threshold:0.##}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ConsoleLog.Error($"Wake word listening failed to start: {ConsoleLog.Describe(ex)}");
+            return false;
+        }
+    }
+
+    private void OnWakeWord()
+    {
+        lock (sync)
+        {
+            if (disposed || !listening)
+            {
+                return;
+            }
+
+            ConsoleLog.Event("Wake word detected");
+            try
+            {
+                switch (state)
+                {
+                    case DictationState.Idle:
+                        StartRecording(startedByWakeWord: true);
+                        break;
+                    case DictationState.Recording:
+                        FinishRecording(stoppedByWakeWord: true);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                ConsoleLog.Error(ConsoleLog.Describe(ex));
+                ResetToIdle();
+            }
+        }
+    }
+
+    private void OnWakeWordFaulted(Exception exception)
+    {
+        lock (sync)
+        {
+            if (disposed || !listening)
+            {
+                return;
+            }
+
+            listening = false;
+            ConsoleLog.Error($"Wake word listening stopped: {ConsoleLog.Describe(exception)}");
+            PublishIndicator();
+        }
+    }
+
+    private void StartRecording(bool startedByWakeWord)
     {
         var id = generation + 1;
         var source = systemAudioArmed ? AudioSource.System : AudioSource.Microphone;
@@ -148,6 +277,7 @@ public sealed class DictationController : IDisposable
         generation = id;
         systemAudioArmed = false;
         recordingSource = source;
+        recordingStartedByWakeWord = startedByWakeWord;
         if (source == AudioSource.System)
         {
             ConsoleLog.Event($"Capturing system audio from: {AudioDeviceCatalog.FindDefaultOutputName()}");
@@ -166,7 +296,7 @@ public sealed class DictationController : IDisposable
             }
 
             ConsoleLog.Event("Maximum recording duration reached.");
-            FinishRecording();
+            FinishRecording(stoppedByWakeWord: false);
         }
     }
 
@@ -184,7 +314,7 @@ public sealed class DictationController : IDisposable
         }
     }
 
-    private void FinishRecording()
+    private void FinishRecording(bool stoppedByWakeWord)
     {
         var recording = session!;
         session = null;
@@ -194,8 +324,9 @@ public sealed class DictationController : IDisposable
         state = DictationState.Transcribing;
         PublishIndicator();
         var id = generation;
-        var voiceCommandsEnabled = recordingSource == AudioSource.Microphone;
-        _ = Task.Run(() => ProcessRecordingAsync(recording, id, typeText, voiceCommandsEnabled, cancellation.Token));
+        var fromMicrophone = recordingSource == AudioSource.Microphone;
+        var wakeWordEdges = fromMicrophone ? new WakeWordEdges(recordingStartedByWakeWord, stoppedByWakeWord) : WakeWordEdges.None;
+        _ = Task.Run(() => ProcessRecordingAsync(recording, id, typeText, fromMicrophone, wakeWordEdges, cancellation.Token));
     }
 
     private void CancelOperation()
@@ -226,7 +357,7 @@ public sealed class DictationController : IDisposable
         SetState(DictationState.Idle);
     }
 
-    private async Task ProcessRecordingAsync(RecordingSession recording, long id, bool typeText, bool voiceCommandsEnabled, CancellationToken cancellationToken)
+    private async Task ProcessRecordingAsync(RecordingSession recording, long id, bool typeText, bool voiceCommandsEnabled, WakeWordEdges wakeWordEdges, CancellationToken cancellationToken)
     {
         try
         {
@@ -234,6 +365,11 @@ public sealed class DictationController : IDisposable
             using (recording)
             {
                 clip = await recording.StopAsync().ConfigureAwait(false);
+            }
+
+            if (wakeWordEdges.AtEnd)
+            {
+                clip = clip.WithoutTail(settings.WakeWordTrimSeconds);
             }
 
             var skipReason = GetSkipReason(clip);
@@ -254,22 +390,23 @@ public sealed class DictationController : IDisposable
                 return;
             }
 
-            if (result.Text.Length == 0)
+            var text = wakeWordEdges.Any ? wakeWordStripper.Strip(result.Text, wakeWordEdges) : result.Text;
+            if (text.Length == 0)
             {
                 FinishOperation(id, "Nothing recognized");
                 return;
             }
 
-            ConsoleLog.Event($"Recognized [{result.Language}]: {result.Text}");
-            history.Append(result.Text, result.Language, clip.DurationSeconds);
+            ConsoleLog.Event($"Recognized [{result.Language}]: {text}");
+            history.Append(text, result.Language, clip.DurationSeconds);
 
-            var command = voiceCommandsEnabled ? commandMatcher.Match(result.Text) : null;
+            var command = voiceCommandsEnabled ? commandMatcher.Match(text) : null;
             if (command is not null)
             {
                 ConsoleLog.Event($"Command: {command}");
             }
 
-            var scriptRule = voiceCommandsEnabled && command is null ? scriptMatcher.Match(result.Text) : null;
+            var scriptRule = voiceCommandsEnabled && command is null ? scriptMatcher.Match(text) : null;
             if (scriptRule is not null)
             {
                 ScriptLauncher.Launch(scriptRule);
@@ -285,7 +422,7 @@ public sealed class DictationController : IDisposable
                 return;
             }
 
-            ExecuteInput(command, result.Text, typeText, cancellationToken);
+            ExecuteInput(command, text, typeText, cancellationToken);
             FinishOperation(id, null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -531,5 +668,5 @@ public sealed class DictationController : IDisposable
     }
 
     private void PublishIndicator() =>
-        IndicatorChanged?.Invoke(new DictationIndicator(state, recordingSource, typeTextArmed, systemAudioArmed));
+        IndicatorChanged?.Invoke(new DictationIndicator(state, recordingSource, typeTextArmed, systemAudioArmed, listening));
 }

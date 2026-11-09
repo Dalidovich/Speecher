@@ -14,6 +14,8 @@ public static class PortablePaths
 
     public static string CudaDirectory => Path.Combine(Root, "runtime", "cuda");
 
+    public static string WakeWordDirectory(string modelName) => Path.Combine(Root, "wakeword", modelName);
+
     private static string ResolveExecutablePath()
     {
         var processPath = Environment.ProcessPath;

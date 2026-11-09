@@ -8,6 +8,10 @@ public sealed class AppSettings
     public const string DefaultTypeTextHotkey = "Ctrl+Alt+T";
     public const string DefaultSystemAudioHotkey = "Ctrl+Alt+S";
     public const string DefaultTranscribeFilesHotkey = "Ctrl+Alt+F";
+    public const string DefaultWakeWordHotkey = "Ctrl+Alt+W";
+    public const string DefaultWakeWordModel = "fuck";
+
+    private const double MaxWakeWordTrimSeconds = 5;
 
     public string Hotkey { get; set; } = DefaultHotkey;
 
@@ -16,6 +20,8 @@ public sealed class AppSettings
     public string SystemAudioHotkey { get; set; } = DefaultSystemAudioHotkey;
 
     public string TranscribeFilesHotkey { get; set; } = DefaultTranscribeFilesHotkey;
+
+    public string WakeWordHotkey { get; set; } = DefaultWakeWordHotkey;
 
     public string MicrophoneName { get; set; } = string.Empty;
 
@@ -37,12 +43,23 @@ public sealed class AppSettings
 
     public ScriptTriggerSettings ScriptTriggers { get; set; } = new();
 
+    public bool WakeWordListening { get; set; }
+
+    public string WakeWordModel { get; set; } = DefaultWakeWordModel;
+
+    public double? WakeWordThreshold { get; set; }
+
+    public double WakeWordTrimSeconds { get; set; } = 1;
+
+    public List<string> WakeWordPhrases { get; set; } = DefaultWakeWordPhrases.Create();
+
     public void FillMissingValues()
     {
         Hotkey ??= DefaultHotkey;
         TypeTextHotkey ??= DefaultTypeTextHotkey;
         SystemAudioHotkey ??= DefaultSystemAudioHotkey;
         TranscribeFilesHotkey ??= DefaultTranscribeFilesHotkey;
+        WakeWordHotkey ??= DefaultWakeWordHotkey;
         MicrophoneName ??= string.Empty;
         GpuName ??= string.Empty;
         Api ??= new();
@@ -50,6 +67,8 @@ public sealed class AppSettings
         VoiceCommands ??= DefaultVoiceCommands.Create();
         ScriptTriggers ??= new();
         ScriptTriggers.FillMissingValues();
+        WakeWordModel ??= DefaultWakeWordModel;
+        WakeWordPhrases ??= DefaultWakeWordPhrases.Create();
     }
 
     public string? FindInvalidField()
@@ -77,6 +96,21 @@ public sealed class AppSettings
         if (CpuThreads < 0)
         {
             return nameof(CpuThreads);
+        }
+
+        if (string.IsNullOrWhiteSpace(WakeWordModel) || WakeWordModel.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            return nameof(WakeWordModel);
+        }
+
+        if (WakeWordThreshold is { } threshold && (threshold <= 0 || threshold > 1 || double.IsNaN(threshold)))
+        {
+            return nameof(WakeWordThreshold);
+        }
+
+        if (WakeWordTrimSeconds < 0 || WakeWordTrimSeconds > MaxWakeWordTrimSeconds || double.IsNaN(WakeWordTrimSeconds))
+        {
+            return nameof(WakeWordTrimSeconds);
         }
 
         if (Backend == SpeechBackend.Api)

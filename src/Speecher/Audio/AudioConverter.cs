@@ -11,7 +11,9 @@ public static class AudioConverter
         return ToWhisperFormat(stream.ToSampleProvider());
     }
 
-    public static AudioClip ToWhisperFormat(ISampleProvider provider)
+    public static AudioClip ToWhisperFormat(ISampleProvider provider) => new(ReadAll(ToWhisperSampleProvider(provider)));
+
+    public static ISampleProvider ToWhisperSampleProvider(ISampleProvider provider)
     {
         if (provider.WaveFormat.Channels > 1)
         {
@@ -23,7 +25,7 @@ public static class AudioConverter
             provider = new WdlResamplingSampleProvider(provider, AudioClip.SampleRate);
         }
 
-        return new AudioClip(ReadAll(provider));
+        return provider;
     }
 
     private static float[] ReadAll(ISampleProvider provider)

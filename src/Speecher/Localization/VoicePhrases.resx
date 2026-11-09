@@ -21,4 +21,7 @@
   <data name="Undo" xml:space="preserve">
     <value>undo</value>
   </data>
+  <data name="WakeWord" xml:space="preserve">
+    <value>fuck</value>
+  </data>
 </root>
