@@ -14,6 +14,7 @@ public sealed class SpeecherApp : IDisposable
     private readonly ShutdownSignal shutdown = new();
     private readonly FileDownloader downloader = new();
     private HotkeyListener? hotkeyListener;
+    private HotkeyListener? typeTextHotkeyListener;
     private ISpeechTranscriber? transcriber;
     private DictationController? controller;
     private TaskbarBadge? taskbarBadge;
@@ -49,6 +50,7 @@ public sealed class SpeecherApp : IDisposable
         controller?.Dispose();
         taskbarBadge?.Dispose();
         hotkeyListener?.Dispose();
+        typeTextHotkeyListener?.Dispose();
         DisposeQuietly(transcriber);
         downloader.Dispose();
         shutdown.MarkCleanupCompleted();
@@ -66,8 +68,6 @@ public sealed class SpeecherApp : IDisposable
         }
 
         JumpList.Register();
-        var outputMode = options.OutputMode ?? settings.DefaultOutputMode;
-        ConsoleLog.Info($"Output mode: {outputMode}");
         ConsoleLog.Info($"Audio source: {options.AudioSource}");
         if (options.AudioSource == AudioSource.System)
         {
@@ -78,11 +78,19 @@ public sealed class SpeecherApp : IDisposable
             ListMicrophones(settings.MicrophoneName);
         }
 
-        var hotkey = RegisterHotkey(settings.Hotkey);
+        var hotkey = ParseHotkey(nameof(AppSettings.Hotkey), settings.Hotkey);
+        var typeTextHotkey = ParseHotkey(nameof(AppSettings.TypeTextHotkey), settings.TypeTextHotkey);
+        if (hotkey.Modifiers == typeTextHotkey.Modifiers && hotkey.Key == typeTextHotkey.Key)
+        {
+            throw new StartupException($"settings.json: {nameof(AppSettings.Hotkey)} and {nameof(AppSettings.TypeTextHotkey)} must differ.");
+        }
+
+        hotkeyListener = RegisterHotkey(hotkey);
+        typeTextHotkeyListener = RegisterHotkey(typeTextHotkey);
 
         var loadedTranscriber = await LoadTranscriberAsync(settings, cancellationToken);
 
-        controller =new DictationController(settings, outputMode, options.AudioSource, loadedTranscriber);
+        controller = new DictationController(settings, options.AudioSource, loadedTranscriber);
         taskbarBadge = TaskbarBadge.Attach();
         if (taskbarBadge is not null)
         {
@@ -90,8 +98,9 @@ public sealed class SpeecherApp : IDisposable
             taskbarBadge.Show(DictationState.Idle);
         }
 
-        hotkeyListener!.Pressed += controller.OnHotkey;
-        ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, Ctrl+C to exit.");
+        hotkeyListener.Pressed += controller.OnHotkey;
+        typeTextHotkeyListener.Pressed += controller.OnTypeTextHotkey;
+        ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, {typeTextHotkey.DisplayName} to type the next phrase instead of copying it, Ctrl+C to exit.");
 
         await Task.Delay(Timeout.Infinite, cancellationToken);
     }
@@ -187,20 +196,26 @@ public sealed class SpeecherApp : IDisposable
         ConsoleLog.Info("Using the system default recording device.");
     }
 
-    private HotkeyDefinition RegisterHotkey(string hotkeyText)
+    private static HotkeyDefinition ParseHotkey(string settingName, string hotkeyText)
     {
         if (!HotkeyParser.TryParse(hotkeyText, out var hotkey))
         {
-            throw new StartupException($"settings.json: Hotkey \"{hotkeyText}\" cannot be parsed. Expected format: Ctrl+Alt+Space.");
-        }
-
-        hotkeyListener = HotkeyListener.Register(hotkey, out var error);
-        if (error is not null)
-        {
-            throw new StartupException($"Failed to register hotkey {hotkey.DisplayName}: {error}");
+            throw new StartupException($"settings.json: {settingName} \"{hotkeyText}\" cannot be parsed. Expected format: Ctrl+Alt+Space.");
         }
 
         return hotkey;
+    }
+
+    private static HotkeyListener RegisterHotkey(HotkeyDefinition hotkey)
+    {
+        var listener = HotkeyListener.Register(hotkey, out var error);
+        if (error is not null)
+        {
+            listener.Dispose();
+            throw new StartupException($"Failed to register hotkey {hotkey.DisplayName}: {error}");
+        }
+
+        return listener;
     }
 
     private static void WaitForExitKey()

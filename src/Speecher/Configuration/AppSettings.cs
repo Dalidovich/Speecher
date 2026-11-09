@@ -5,12 +5,13 @@ namespace Speecher.Configuration;
 public sealed class AppSettings
 {
     public const string DefaultHotkey = "Ctrl+Alt+Space";
+    public const string DefaultTypeTextHotkey = "Ctrl+Alt+T";
 
     public string Hotkey { get; set; } = DefaultHotkey;
 
-    public string MicrophoneName { get; set; } = string.Empty;
+    public string TypeTextHotkey { get; set; } = DefaultTypeTextHotkey;
 
-    public OutputMode DefaultOutputMode { get; set; } = OutputMode.Clipboard;
+    public string MicrophoneName { get; set; } = string.Empty;
 
     public double MaxRecordingSeconds { get; set; } = 120;
 
@@ -33,6 +34,7 @@ public sealed class AppSettings
     public void FillMissingValues()
     {
         Hotkey ??= DefaultHotkey;
+        TypeTextHotkey ??= DefaultTypeTextHotkey;
         MicrophoneName ??= string.Empty;
         GpuName ??= string.Empty;
         Api ??= new();
@@ -44,11 +46,6 @@ public sealed class AppSettings
 
     public string? FindInvalidField()
     {
-        if (!Enum.IsDefined(DefaultOutputMode))
-        {
-            return nameof(DefaultOutputMode);
-        }
-
         if (MaxRecordingSeconds <= 0 || double.IsNaN(MaxRecordingSeconds))
         {
             return nameof(MaxRecordingSeconds);

@@ -11,7 +11,6 @@ public sealed class DictationController : IDisposable
 {
     private readonly object sync = new();
     private readonly AppSettings settings;
-    private readonly OutputMode outputMode;
     private readonly bool voiceCommandsEnabled;
     private readonly AudioRecorder recorder;
     private readonly ISpeechTranscriber transcriber;
@@ -25,12 +24,12 @@ public sealed class DictationController : IDisposable
     private RecordingSession? session;
     private CancellationTokenSource? operation;
     private int lastInputLength;
+    private bool typeTextArmed;
     private bool disposed;
 
-    public DictationController(AppSettings settings, OutputMode outputMode, AudioSource audioSource, ISpeechTranscriber transcriber)
+    public DictationController(AppSettings settings, AudioSource audioSource, ISpeechTranscriber transcriber)
     {
         this.settings = settings;
-        this.outputMode = outputMode;
         this.transcriber = transcriber;
         voiceCommandsEnabled = audioSource == AudioSource.Microphone;
         recorder = new AudioRecorder(audioSource, settings.MicrophoneName);
@@ -69,6 +68,20 @@ public sealed class DictationController : IDisposable
                 ConsoleLog.Error(ConsoleLog.Describe(ex));
                 ResetToIdle();
             }
+        }
+    }
+
+    public void OnTypeTextHotkey()
+    {
+        lock (sync)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            typeTextArmed = !typeTextArmed;
+            ConsoleLog.Event(typeTextArmed ? "Type text armed for the next recording" : "Type text disarmed");
         }
     }
 
@@ -132,7 +145,8 @@ public sealed class DictationController : IDisposable
         state = DictationState.Transcribing;
         StateChanged?.Invoke(state);
         var id = generation;
-        _ = Task.Run(() => ProcessRecordingAsync(recording, id, cancellation.Token));
+        var typeText = TakeTypeTextFlag();
+        _ = Task.Run(() => ProcessRecordingAsync(recording, id, typeText, cancellation.Token));
     }
 
     private void CancelOperation()
@@ -141,8 +155,20 @@ public sealed class DictationController : IDisposable
         ResetToIdle();
     }
 
+    private bool TakeTypeTextFlag()
+    {
+        var armed = typeTextArmed;
+        typeTextArmed = false;
+        return armed;
+    }
+
     private void ResetToIdle()
     {
+        if (state == DictationState.Recording && TakeTypeTextFlag())
+        {
+            ConsoleLog.Event("Type text disarmed");
+        }
+
         generation++;
         operation?.Cancel();
         operation = null;
@@ -151,7 +177,7 @@ public sealed class DictationController : IDisposable
         SetState(DictationState.Idle);
     }
 
-    private async Task ProcessRecordingAsync(RecordingSession recording, long id, CancellationToken cancellationToken)
+    private async Task ProcessRecordingAsync(RecordingSession recording, long id, bool typeText, CancellationToken cancellationToken)
     {
         try
         {
@@ -210,7 +236,7 @@ public sealed class DictationController : IDisposable
                 return;
             }
 
-            ExecuteInput(command, result.Text, cancellationToken);
+            ExecuteInput(command, result.Text, typeText, cancellationToken);
             FinishOperation(id, null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -223,7 +249,7 @@ public sealed class DictationController : IDisposable
         }
     }
 
-    private void ExecuteInput(VoiceCommandAction? command, string text, CancellationToken cancellationToken)
+    private void ExecuteInput(VoiceCommandAction? command, string text, bool typeText, CancellationToken cancellationToken)
     {
         typer.WaitForModifiersReleased(cancellationToken);
 
@@ -241,14 +267,14 @@ public sealed class DictationController : IDisposable
                 Interlocked.Add(ref lastInputLength, -erased);
                 break;
             default:
-                OutputText(text, cancellationToken);
+                OutputText(text, typeText, cancellationToken);
                 break;
         }
     }
 
-    private void OutputText(string text, CancellationToken cancellationToken)
+    private void OutputText(string text, bool typeText, CancellationToken cancellationToken)
     {
-        if (outputMode == OutputMode.Clipboard)
+        if (!typeText)
         {
             ClipboardWriter.SetText(text, cancellationToken);
             ConsoleLog.Event("Copied to clipboard");

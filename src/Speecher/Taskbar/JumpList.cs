@@ -9,9 +9,8 @@ public static class JumpList
 {
     private static readonly (string Title, string Arguments)[] Tasks =
     [
-        ("Type text", $"{LaunchOptions.OutputArgument} {OutputMode.Type}"),
-        ("Copy to clipboard", $"{LaunchOptions.OutputArgument} {OutputMode.Clipboard}"),
-        ("System audio to clipboard", $"{LaunchOptions.SourceArgument} {AudioSource.System} {LaunchOptions.OutputArgument} {OutputMode.Clipboard}"),
+        ("Copy to clipboard", $"{LaunchOptions.SourceArgument} {AudioSource.Microphone}"),
+        ("System audio to clipboard", $"{LaunchOptions.SourceArgument} {AudioSource.System}"),
         ("Transcribe files", LaunchOptions.FilesArgument)
     ];
 

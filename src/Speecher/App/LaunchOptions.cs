@@ -2,15 +2,13 @@ using Speecher.Configuration;
 
 namespace Speecher.App;
 
-public sealed record LaunchOptions(OutputMode? OutputMode, AudioSource AudioSource, bool TranscribeFiles)
+public sealed record LaunchOptions(AudioSource AudioSource, bool TranscribeFiles)
 {
-    public const string OutputArgument = "--output";
     public const string SourceArgument = "--source";
     public const string FilesArgument = "--files";
 
     public static LaunchOptions Parse(string[] args)
     {
-        OutputMode? outputMode = null;
         AudioSource? audioSource = null;
         var transcribeFiles = false;
         for (var i = 0; i < args.Length; i++)
@@ -23,11 +21,7 @@ public sealed record LaunchOptions(OutputMode? OutputMode, AudioSource AudioSour
             }
 
             var (name, value) = SplitArgument(args, ref i);
-            if (string.Equals(name, OutputArgument, StringComparison.OrdinalIgnoreCase))
-            {
-                outputMode = ParseEnum<OutputMode>(OutputArgument, value);
-            }
-            else if (string.Equals(name, SourceArgument, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(name, SourceArgument, StringComparison.OrdinalIgnoreCase))
             {
                 audioSource = ParseEnum<AudioSource>(SourceArgument, value);
             }
@@ -37,17 +31,12 @@ public sealed record LaunchOptions(OutputMode? OutputMode, AudioSource AudioSour
             }
         }
 
-        if (transcribeFiles && outputMode is not null)
-        {
-            throw new StartupException($"{FilesArgument} cannot be combined with {OutputArgument}.");
-        }
-
         if (transcribeFiles && audioSource is not null)
         {
             throw new StartupException($"{FilesArgument} cannot be combined with {SourceArgument}.");
         }
 
-        return new LaunchOptions(outputMode, audioSource ?? AudioSource.Microphone, transcribeFiles);
+        return new LaunchOptions(audioSource ?? AudioSource.Microphone, transcribeFiles);
     }
 
     private static T ParseEnum<T>(string argumentName, string? value) where T : struct, Enum
