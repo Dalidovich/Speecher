@@ -9,9 +9,10 @@ internal static class BadgeIcon
     private const int BytesPerPixel = 4;
     private const float CornerShare = 0.35f;
     private const float DotShare = 0.22f;
+    private const float BottomBandShare = 1f / 3f;
     private const uint White = 0xFFFFFF;
 
-    public static nint Create(int size, uint rgb, bool square, bool dot, uint? borderRgb)
+    public static nint Create(int size, uint rgb, bool square, bool dot, uint? borderRgb, uint? bottomRgb)
     {
         var pixelBytes = size * size * BytesPerPixel;
         var maskBytes = (size + 31) / 32 * 4 * size;
@@ -22,6 +23,8 @@ internal static class BadgeIcon
         var border = borderRgb is null ? Math.Max(1f, size / 16f) : Math.Max(2f, size / 8f);
         var ring = borderRgb ?? White;
         var dotRadius = size * DotShare;
+        var bandTop = size * (1f - BottomBandShare);
+        var band = bottomRgb ?? rgb;
         for (var y = 0; y < size; y++)
         {
             for (var x = 0; x < size; x++)
@@ -32,11 +35,13 @@ internal static class BadgeIcon
                 var inner = Coverage(ShapeDistance(dx, dy, half - border, square));
                 var hole = dot ? Coverage(CircleDistance(dx, dy, dotRadius)) : 0f;
                 var body = 1f - hole;
+                var inBand = bottomRgb is null ? 0f : Coverage(bandTop - (y + 0.5f));
                 var offset = HeaderSize + (y * size + x) * BytesPerPixel;
                 for (var channel = 0; channel < 3; channel++)
                 {
                     var shift = channel * 8;
-                    var bodyValue = Blend(White >> shift & 0xFF, rgb >> shift & 0xFF, body);
+                    var fillValue = Blend(rgb >> shift & 0xFF, band >> shift & 0xFF, inBand);
+                    var bodyValue = Blend(White >> shift & 0xFF, fillValue, body);
                     image[offset + channel] = (byte)MathF.Round(Blend(ring >> shift & 0xFF, bodyValue, inner));
                 }
 

@@ -37,6 +37,11 @@ public static class WindowTitle
             parts.Add("[Listening]");
         }
 
+        if (indicator.EnglishApiLanguage)
+        {
+            parts.Add("[EN]");
+        }
+
         return string.Join(Separator, parts);
     }
 

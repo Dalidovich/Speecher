@@ -12,6 +12,7 @@ public sealed class TaskbarBadge : IDisposable
     private const uint Red = 0xE53935;
     private const uint Yellow = 0xFDD835;
     private const uint DarkRed = 0x8B0000;
+    private const uint Blue = 0x1E88E5;
 
     private readonly BlockingCollection<DictationIndicator> pending = new();
     private readonly Thread thread;
@@ -60,7 +61,7 @@ public sealed class TaskbarBadge : IDisposable
                 var look = BadgeLook.Of(indicator);
                 if (!icons.TryGetValue(look, out var icon))
                 {
-                    icon = BadgeIcon.Create(size, ColorOf(look.State), look.Square, look.Dot, look.Listening ? DarkRed : null);
+                    icon = BadgeIcon.Create(size, ColorOf(look.State), look.Square, look.Dot, look.Listening ? DarkRed : null, look.English ? Blue : null);
                     icons[look] = icon;
                 }
 
@@ -94,9 +95,9 @@ public sealed class TaskbarBadge : IDisposable
         _ => Yellow
     };
 
-    private readonly record struct BadgeLook(DictationState State, bool Square, bool Dot, bool Listening)
+    private readonly record struct BadgeLook(DictationState State, bool Square, bool Dot, bool Listening, bool English)
     {
         public static BadgeLook Of(DictationIndicator indicator) =>
-            new(indicator.State, indicator.ShowsSystemAudio, indicator.TypeTextArmed, indicator.WakeWordListening);
+            new(indicator.State, indicator.ShowsSystemAudio, indicator.TypeTextArmed, indicator.WakeWordListening, indicator.EnglishApiLanguage);
     }
 }

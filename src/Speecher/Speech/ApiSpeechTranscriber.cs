@@ -7,12 +7,14 @@ namespace Speecher.Speech;
 public sealed class ApiSpeechTranscriber : ISpeechTranscriber
 {
     private readonly ApiTranscriptionSettings settings;
+    private readonly ApiLanguage language;
     private readonly HttpClient client;
     private readonly SemaphoreSlim gate = new(1, 1);
 
-    private ApiSpeechTranscriber(ApiTranscriptionSettings settings)
+    private ApiSpeechTranscriber(ApiTranscriptionSettings settings, ApiLanguage language)
     {
         this.settings = settings;
+        this.language = language;
         client = new HttpClient
         {
             Timeout = settings.TimeoutSeconds == 0
@@ -28,9 +30,9 @@ public sealed class ApiSpeechTranscriber : ISpeechTranscriber
 
     public string Backend => "API";
 
-    public static async Task<ApiSpeechTranscriber> CreateAsync(ApiTranscriptionSettings settings, CancellationToken cancellationToken)
+    public static async Task<ApiSpeechTranscriber> CreateAsync(ApiTranscriptionSettings settings, ApiLanguage language, CancellationToken cancellationToken)
     {
-        var transcriber = new ApiSpeechTranscriber(settings);
+        var transcriber = new ApiSpeechTranscriber(settings, language);
         try
         {
             await transcriber.CheckHealthAsync(cancellationToken).ConfigureAwait(false);
@@ -59,8 +61,8 @@ public sealed class ApiSpeechTranscriber : ISpeechTranscriber
 
             using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false));
             var text = GetRequiredString(document.RootElement, settings.TextResponseProperty);
-            var language = GetOptionalString(document.RootElement, settings.LanguageResponseProperty) ?? "unknown";
-            return new TranscriptionResult(text.Trim(), language);
+            var detectedLanguage = GetOptionalString(document.RootElement, settings.LanguageResponseProperty) ?? "unknown";
+            return new TranscriptionResult(text.Trim(), detectedLanguage);
         }
         finally
         {
@@ -105,7 +107,7 @@ public sealed class ApiSpeechTranscriber : ISpeechTranscriber
         }
 
         var separator = settings.Endpoint.Contains('?') ? '&' : '?';
-        var uri = $"{settings.Endpoint}{separator}{Uri.EscapeDataString(settings.LanguageParameter)}={Uri.EscapeDataString(settings.Language)}";
+        var uri = $"{settings.Endpoint}{separator}{Uri.EscapeDataString(settings.LanguageParameter)}={Uri.EscapeDataString(language.Current)}";
         return new Uri(uri, UriKind.Absolute);
     }
 

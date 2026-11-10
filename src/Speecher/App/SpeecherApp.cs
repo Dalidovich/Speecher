@@ -18,6 +18,7 @@ public sealed class SpeecherApp : IDisposable
     private HotkeyListener? systemAudioHotkeyListener;
     private HotkeyListener? transcribeFilesHotkeyListener;
     private HotkeyListener? wakeWordHotkeyListener;
+    private HotkeyListener? apiLanguageHotkeyListener;
     private WakeWordListener? wakeWordListener;
     private ISpeechTranscriber? transcriber;
     private DictationController? controller;
@@ -58,6 +59,7 @@ public sealed class SpeecherApp : IDisposable
         systemAudioHotkeyListener?.Dispose();
         transcribeFilesHotkeyListener?.Dispose();
         wakeWordHotkeyListener?.Dispose();
+        apiLanguageHotkeyListener?.Dispose();
         DisposeQuietly(wakeWordListener);
         DisposeQuietly(transcriber);
         downloader.Dispose();
@@ -80,30 +82,35 @@ public sealed class SpeecherApp : IDisposable
         var systemAudioHotkey = ParseHotkey(nameof(AppSettings.SystemAudioHotkey), settings.SystemAudioHotkey);
         var transcribeFilesHotkey = ParseHotkey(nameof(AppSettings.TranscribeFilesHotkey), settings.TranscribeFilesHotkey);
         var wakeWordHotkey = ParseHotkey(nameof(AppSettings.WakeWordHotkey), settings.WakeWordHotkey);
+        var apiLanguageHotkey = ParseHotkey(nameof(AppSettings.ApiLanguageHotkey), settings.ApiLanguageHotkey);
         EnsureDistinct(
             (nameof(AppSettings.Hotkey), hotkey),
             (nameof(AppSettings.TypeTextHotkey), typeTextHotkey),
             (nameof(AppSettings.SystemAudioHotkey), systemAudioHotkey),
             (nameof(AppSettings.TranscribeFilesHotkey), transcribeFilesHotkey),
-            (nameof(AppSettings.WakeWordHotkey), wakeWordHotkey));
+            (nameof(AppSettings.WakeWordHotkey), wakeWordHotkey),
+            (nameof(AppSettings.ApiLanguageHotkey), apiLanguageHotkey));
 
         hotkeyListener = RegisterHotkey(hotkey);
         typeTextHotkeyListener = RegisterHotkey(typeTextHotkey);
         systemAudioHotkeyListener = RegisterHotkey(systemAudioHotkey);
         transcribeFilesHotkeyListener = RegisterHotkey(transcribeFilesHotkey);
         wakeWordHotkeyListener = RegisterHotkey(wakeWordHotkey);
+        apiLanguageHotkeyListener = RegisterHotkey(apiLanguageHotkey);
 
-        var loadedTranscriber = await LoadTranscriberAsync(settings, cancellationToken);
+        var apiLanguage = new ApiLanguage(settings.Api.Language);
+        var loadedTranscriber = await LoadTranscriberAsync(settings, apiLanguage, cancellationToken);
         wakeWordListener = LoadWakeWordListener(settings);
 
-        controller = new DictationController(settings, loadedTranscriber, wakeWordListener);
+        controller = new DictationController(settings, loadedTranscriber, apiLanguage, wakeWordListener);
+        var initialIndicator = controller.Indicator;
         controller.IndicatorChanged += WindowTitle.Show;
-        WindowTitle.Show(DictationIndicator.Initial);
+        WindowTitle.Show(initialIndicator);
         taskbarBadge = TaskbarBadge.Attach();
         if (taskbarBadge is not null)
         {
             controller.IndicatorChanged += taskbarBadge.Show;
-            taskbarBadge.Show(DictationIndicator.Initial);
+            taskbarBadge.Show(initialIndicator);
         }
 
         hotkeyListener.Pressed += controller.OnHotkey;
@@ -111,18 +118,19 @@ public sealed class SpeecherApp : IDisposable
         systemAudioHotkeyListener.Pressed += controller.OnSystemAudioHotkey;
         transcribeFilesHotkeyListener.Pressed += controller.OnTranscribeFilesHotkey;
         wakeWordHotkeyListener.Pressed += controller.OnWakeWordHotkey;
-        ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, {typeTextHotkey.DisplayName} to type the next phrase instead of copying it, {systemAudioHotkey.DisplayName} to record system audio next time, {transcribeFilesHotkey.DisplayName} to transcribe audio files, {wakeWordHotkey.DisplayName} to toggle wake word listening, Ctrl+C to exit.");
+        apiLanguageHotkeyListener.Pressed += controller.OnApiLanguageHotkey;
+        ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, {typeTextHotkey.DisplayName} to type the next phrase instead of copying it, {systemAudioHotkey.DisplayName} to record system audio next time, {transcribeFilesHotkey.DisplayName} to transcribe audio files, {wakeWordHotkey.DisplayName} to toggle wake word listening, {apiLanguageHotkey.DisplayName} to switch the API language between ru and en, Ctrl+C to exit.");
         controller.RestoreWakeWordListening();
 
         await Task.Delay(Timeout.Infinite, cancellationToken);
     }
 
-    private async Task<ISpeechTranscriber> LoadTranscriberAsync(AppSettings settings, CancellationToken cancellationToken)
+    private async Task<ISpeechTranscriber> LoadTranscriberAsync(AppSettings settings, ApiLanguage apiLanguage, CancellationToken cancellationToken)
     {
         if (settings.Backend == SpeechBackend.Api)
         {
             ConsoleLog.Info("Checking transcription API...");
-            transcriber = await ApiSpeechTranscriber.CreateAsync(settings.Api, cancellationToken).ConfigureAwait(false);
+            transcriber = await ApiSpeechTranscriber.CreateAsync(settings.Api, apiLanguage, cancellationToken).ConfigureAwait(false);
             ConsoleLog.Info($"Backend: {transcriber.Backend}");
             return transcriber;
         }

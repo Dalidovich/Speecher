@@ -9,6 +9,7 @@ public sealed class AppSettings
     public const string DefaultSystemAudioHotkey = "Ctrl+Alt+S";
     public const string DefaultTranscribeFilesHotkey = "Ctrl+Alt+F";
     public const string DefaultWakeWordHotkey = "Ctrl+Alt+W";
+    public const string DefaultApiLanguageHotkey = "Ctrl+Alt+L";
     public const string DefaultWakeWordModel = "fuck";
 
     private const double MaxWakeWordTrimSeconds = 5;
@@ -22,6 +23,8 @@ public sealed class AppSettings
     public string TranscribeFilesHotkey { get; set; } = DefaultTranscribeFilesHotkey;
 
     public string WakeWordHotkey { get; set; } = DefaultWakeWordHotkey;
+
+    public string ApiLanguageHotkey { get; set; } = DefaultApiLanguageHotkey;
 
     public string MicrophoneName { get; set; } = string.Empty;
 
@@ -60,6 +63,7 @@ public sealed class AppSettings
         SystemAudioHotkey ??= DefaultSystemAudioHotkey;
         TranscribeFilesHotkey ??= DefaultTranscribeFilesHotkey;
         WakeWordHotkey ??= DefaultWakeWordHotkey;
+        ApiLanguageHotkey ??= DefaultApiLanguageHotkey;
         MicrophoneName ??= string.Empty;
         GpuName ??= string.Empty;
         Api ??= new();

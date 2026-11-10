@@ -15,6 +15,7 @@ public sealed class DictationController : IDisposable
     private readonly AppSettings settings;
     private readonly AudioRecorder recorder;
     private readonly ISpeechTranscriber transcriber;
+    private readonly ApiLanguage apiLanguage;
     private readonly KeyboardTyper typer = new();
     private readonly VoiceCommandMatcher commandMatcher;
     private readonly ScriptTriggerMatcher scriptMatcher;
@@ -35,10 +36,11 @@ public sealed class DictationController : IDisposable
     private bool listening;
     private bool disposed;
 
-    public DictationController(AppSettings settings, ISpeechTranscriber transcriber, WakeWordListener? wakeWordListener)
+    public DictationController(AppSettings settings, ISpeechTranscriber transcriber, ApiLanguage apiLanguage, WakeWordListener? wakeWordListener)
     {
         this.settings = settings;
         this.transcriber = transcriber;
+        this.apiLanguage = apiLanguage;
         this.wakeWordListener = wakeWordListener;
         recorder = new AudioRecorder(settings.MicrophoneName);
         commandMatcher = new VoiceCommandMatcher(settings.VoiceCommands);
@@ -52,6 +54,17 @@ public sealed class DictationController : IDisposable
     }
 
     public event Action<DictationIndicator>? IndicatorChanged;
+
+    public DictationIndicator Indicator
+    {
+        get
+        {
+            lock (sync)
+            {
+                return CreateIndicator();
+            }
+        }
+    }
 
     public void OnHotkey()
     {
@@ -143,6 +156,32 @@ public sealed class DictationController : IDisposable
 
             settings.WakeWordListening = listening;
             SettingsStore.Save(settings, "wake word listening state was not saved");
+            PublishIndicator();
+        }
+    }
+
+    public void OnApiLanguageHotkey()
+    {
+        lock (sync)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            if (settings.Backend != SpeechBackend.Api)
+            {
+                ConsoleLog.Warning($"API language can be switched only with {nameof(AppSettings.Backend)} \"{SpeechBackend.Api}\".");
+                return;
+            }
+
+            if (settings.Api.LanguageParameter.Length == 0)
+            {
+                ConsoleLog.Warning($"API language cannot be switched: {nameof(AppSettings.Api)}.{nameof(ApiTranscriptionSettings.LanguageParameter)} is empty.");
+                return;
+            }
+
+            ConsoleLog.Event($"API language: {apiLanguage.Toggle()}");
             PublishIndicator();
         }
     }
@@ -667,6 +706,8 @@ public sealed class DictationController : IDisposable
         PublishIndicator();
     }
 
-    private void PublishIndicator() =>
-        IndicatorChanged?.Invoke(new DictationIndicator(state, recordingSource, typeTextArmed, systemAudioArmed, listening));
+    private void PublishIndicator() => IndicatorChanged?.Invoke(CreateIndicator());
+
+    private DictationIndicator CreateIndicator() =>
+        new(state, recordingSource, typeTextArmed, systemAudioArmed, listening, settings.Backend == SpeechBackend.Api && apiLanguage.IsEnglish);
 }
