@@ -4,6 +4,8 @@ using Speecher.Configuration;
 
 namespace Speecher.Dictation;
 
+public sealed record ScriptMatch(ScriptRule Rule, Match Match);
+
 public sealed class ScriptTriggerMatcher
 {
     private readonly List<(Regex Regex, ScriptRule Rule)> rules = [];
@@ -21,15 +23,16 @@ public sealed class ScriptTriggerMatcher
         }
     }
 
-    public ScriptRule? Match(string text)
+    public ScriptMatch? Match(string text)
     {
         foreach (var (regex, rule) in rules)
         {
             try
             {
-                if (regex.IsMatch(text))
+                var match = regex.Match(text);
+                if (match.Success)
                 {
-                    return rule;
+                    return new ScriptMatch(rule, match);
                 }
             }
             catch (RegexMatchTimeoutException)

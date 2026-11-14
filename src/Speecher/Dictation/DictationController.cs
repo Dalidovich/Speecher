@@ -445,11 +445,11 @@ public sealed class DictationController : IDisposable
                 ConsoleLog.Event($"Command: {command}");
             }
 
-            var scriptRule = voiceCommandsEnabled && command is null ? scriptMatcher.Match(text) : null;
-            if (scriptRule is not null)
+            var scriptMatch = voiceCommandsEnabled && command is null ? scriptMatcher.Match(text) : null;
+            if (scriptMatch is not null)
             {
-                ScriptLauncher.Launch(scriptRule);
-                if (!scriptRule.OutputText)
+                ScriptLauncher.Launch(scriptMatch.Rule, ScriptVariables.Build(text, scriptMatch.Match));
+                if (!scriptMatch.Rule.OutputText)
                 {
                     FinishOperation(id, null);
                     return;

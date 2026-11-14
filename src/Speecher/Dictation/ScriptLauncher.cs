@@ -11,7 +11,7 @@ public static class ScriptLauncher
 {
     private static readonly Lazy<Encoding> ConsoleOutputEncoding = new(CreateConsoleOutputEncoding);
 
-    public static void Launch(ScriptRule rule)
+    public static void Launch(ScriptRule rule, IReadOnlyDictionary<string, string> variables)
     {
         if (!string.IsNullOrWhiteSpace(rule.Description))
         {
@@ -24,7 +24,7 @@ public static class ScriptLauncher
         }
         else
         {
-            RunCommand(rule.Command, rule.Shell);
+            RunCommand(rule.Command, rule.Shell, variables);
         }
     }
 
@@ -50,7 +50,7 @@ public static class ScriptLauncher
         }
     }
 
-    private static void RunCommand(string command, ScriptShell shell)
+    private static void RunCommand(string command, ScriptShell shell, IReadOnlyDictionary<string, string> variables)
     {
         var startInfo = CreateShellStartInfo(command, shell);
         startInfo.UseShellExecute = false;
@@ -61,6 +61,10 @@ public static class ScriptLauncher
         startInfo.RedirectStandardError = true;
         startInfo.StandardOutputEncoding = ConsoleOutputEncoding.Value;
         startInfo.StandardErrorEncoding = ConsoleOutputEncoding.Value;
+        foreach (var (name, value) in variables)
+        {
+            startInfo.Environment[name] = value;
+        }
 
         try
         {
@@ -73,10 +77,20 @@ public static class ScriptLauncher
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
             ConsoleLog.Event($"{shell} command started: {command}");
+            LogVariables(variables);
         }
         catch (Win32Exception ex)
         {
             ConsoleLog.Error($"Failed to start {shell} command: {ex.Message}");
+        }
+    }
+
+    private static void LogVariables(IReadOnlyDictionary<string, string> variables)
+    {
+        var names = variables.Keys.Where(name => name != ScriptVariables.TextName).ToList();
+        if (names.Count > 0)
+        {
+            ConsoleLog.Event($"Script variables set: {string.Join(", ", names)}");
         }
     }
 
