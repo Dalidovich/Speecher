@@ -13,6 +13,11 @@ public static class ScriptLauncher
 
     public static void Launch(ScriptRule rule)
     {
+        if (!string.IsNullOrWhiteSpace(rule.Description))
+        {
+            ConsoleLog.Event($"Script rule matched: {rule.Description}");
+        }
+
         if (string.IsNullOrWhiteSpace(rule.Command))
         {
             LaunchFile(rule.Path);

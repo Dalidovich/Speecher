@@ -6,6 +6,8 @@ public sealed class ScriptRule
 {
     private static readonly TimeSpan MatchTimeout = TimeSpan.FromSeconds(1);
 
+    public string Description { get; set; } = string.Empty;
+
     public string Pattern { get; set; } = string.Empty;
 
     public string Path { get; set; } = string.Empty;

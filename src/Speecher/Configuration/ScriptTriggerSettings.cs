@@ -12,6 +12,7 @@ public sealed class ScriptTriggerSettings
         Rules.RemoveAll(rule => rule is null);
         foreach (var rule in Rules)
         {
+            rule.Description ??= string.Empty;
             rule.Pattern ??= string.Empty;
             rule.Path ??= string.Empty;
             rule.Command ??= string.Empty;

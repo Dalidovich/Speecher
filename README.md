@@ -174,16 +174,17 @@
 "ScriptTriggers": {
   "Enabled": true,
   "Rules": [
-    { "Pattern": "^открой калькулятор\\W*$", "Path": "calc.exe", "OutputText": false },
-    { "Pattern": "\\bзаметка\\b", "Path": "scripts\\note.bat", "OutputText": true },
-    { "Pattern": "^выключи звук\\W*$", "Command": "nircmd mutesysvolume 1" },
-    { "Pattern": "^сохрани буфер\\W*$", "Shell": "PowerShell", "Command": "Get-Clipboard | Add-Content \"$env:USERPROFILE\\clips.txt\"" }
+    { "Description": "Калькулятор", "Pattern": "^открой калькулятор\\W*$", "Path": "calc.exe", "OutputText": false },
+    { "Description": "Заметка", "Pattern": "\\bзаметка\\b", "Path": "scripts\\note.bat", "OutputText": true },
+    { "Description": "Выключить звук", "Pattern": "^выключи звук\\W*$", "Command": "nircmd mutesysvolume 1" },
+    { "Description": "Сохранить буфер в файл", "Pattern": "^сохрани буфер\\W*$", "Shell": "PowerShell", "Command": "Get-Clipboard | Add-Content \"$env:USERPROFILE\\clips.txt\"" }
   ]
 }
 ```
 
 В каждом правиле указывается либо `Path`, либо `Command`.
 
+- `Description` — необязательное описание правила для удобства; при срабатывании выводится в консоль.
 - Правила проверяются по порядку, запускается только первое подошедшее.
 - Регулярное выражение применяется к тексту как есть, без учёта регистра. Whisper обычно ставит точку в конце фразы — учитывайте это в шаблоне.
 - `Path` — абсолютный путь, путь относительно папки с exe или имя программы из `PATH`. Переменные окружения вида `%USERPROFILE%` раскрываются. Файл открывается так же, как двойным щелчком, поэтому подходят `.exe`, `.bat`, `.cmd` и другие типы с назначенной программой.
