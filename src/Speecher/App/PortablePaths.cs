@@ -10,6 +10,8 @@ public static class PortablePaths
 
     public static string HistoryFile => Path.Combine(Root, "history.jsonl");
 
+    public static string ExportDirectory => Path.Combine(Root, "export");
+
     public static string ModelsDirectory => Path.Combine(Root, "models");
 
     public static string CudaDirectory => Path.Combine(Root, "runtime", "cuda");

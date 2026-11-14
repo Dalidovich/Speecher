@@ -19,6 +19,7 @@ public sealed class SpeecherApp : IDisposable
     private HotkeyListener? transcribeFilesHotkeyListener;
     private HotkeyListener? wakeWordHotkeyListener;
     private HotkeyListener? apiLanguageHotkeyListener;
+    private HotkeyListener? saveRecordingHotkeyListener;
     private WakeWordListener? wakeWordListener;
     private ISpeechTranscriber? transcriber;
     private DictationController? controller;
@@ -60,6 +61,7 @@ public sealed class SpeecherApp : IDisposable
         transcribeFilesHotkeyListener?.Dispose();
         wakeWordHotkeyListener?.Dispose();
         apiLanguageHotkeyListener?.Dispose();
+        saveRecordingHotkeyListener?.Dispose();
         DisposeQuietly(wakeWordListener);
         DisposeQuietly(transcriber);
         downloader.Dispose();
@@ -83,13 +85,15 @@ public sealed class SpeecherApp : IDisposable
         var transcribeFilesHotkey = ParseHotkey(nameof(AppSettings.TranscribeFilesHotkey), settings.TranscribeFilesHotkey);
         var wakeWordHotkey = ParseHotkey(nameof(AppSettings.WakeWordHotkey), settings.WakeWordHotkey);
         var apiLanguageHotkey = ParseHotkey(nameof(AppSettings.ApiLanguageHotkey), settings.ApiLanguageHotkey);
+        var saveRecordingHotkey = ParseHotkey(nameof(AppSettings.SaveRecordingHotkey), settings.SaveRecordingHotkey);
         EnsureDistinct(
             (nameof(AppSettings.Hotkey), hotkey),
             (nameof(AppSettings.TypeTextHotkey), typeTextHotkey),
             (nameof(AppSettings.SystemAudioHotkey), systemAudioHotkey),
             (nameof(AppSettings.TranscribeFilesHotkey), transcribeFilesHotkey),
             (nameof(AppSettings.WakeWordHotkey), wakeWordHotkey),
-            (nameof(AppSettings.ApiLanguageHotkey), apiLanguageHotkey));
+            (nameof(AppSettings.ApiLanguageHotkey), apiLanguageHotkey),
+            (nameof(AppSettings.SaveRecordingHotkey), saveRecordingHotkey));
 
         hotkeyListener = RegisterHotkey(hotkey);
         typeTextHotkeyListener = RegisterHotkey(typeTextHotkey);
@@ -97,6 +101,7 @@ public sealed class SpeecherApp : IDisposable
         transcribeFilesHotkeyListener = RegisterHotkey(transcribeFilesHotkey);
         wakeWordHotkeyListener = RegisterHotkey(wakeWordHotkey);
         apiLanguageHotkeyListener = RegisterHotkey(apiLanguageHotkey);
+        saveRecordingHotkeyListener = RegisterHotkey(saveRecordingHotkey);
 
         var apiLanguage = new ApiLanguage(settings.Api.Language);
         var loadedTranscriber = await LoadTranscriberAsync(settings, apiLanguage, cancellationToken);
@@ -119,7 +124,16 @@ public sealed class SpeecherApp : IDisposable
         transcribeFilesHotkeyListener.Pressed += controller.OnTranscribeFilesHotkey;
         wakeWordHotkeyListener.Pressed += controller.OnWakeWordHotkey;
         apiLanguageHotkeyListener.Pressed += controller.OnApiLanguageHotkey;
-        ConsoleLog.Info($"Ready. Press {hotkey.DisplayName} to start or stop recording, {typeTextHotkey.DisplayName} to type the next phrase instead of copying it, {systemAudioHotkey.DisplayName} to record system audio next time, {transcribeFilesHotkey.DisplayName} to transcribe audio files, {wakeWordHotkey.DisplayName} to toggle wake word listening, {apiLanguageHotkey.DisplayName} to switch the API language between ru and en, Ctrl+C to exit.");
+        saveRecordingHotkeyListener.Pressed += controller.OnSaveRecordingHotkey;
+        ConsoleLog.Info("Ready.");
+        ConsoleLog.Info($"  {hotkey.DisplayName} - start or stop recording");
+        ConsoleLog.Info($"  {typeTextHotkey.DisplayName} - type the next phrase instead of copying it");
+        ConsoleLog.Info($"  {systemAudioHotkey.DisplayName} - record system audio next time");
+        ConsoleLog.Info($"  {transcribeFilesHotkey.DisplayName} - transcribe audio files");
+        ConsoleLog.Info($"  {wakeWordHotkey.DisplayName} - toggle wake word listening");
+        ConsoleLog.Info($"  {apiLanguageHotkey.DisplayName} - switch the API language between ru and en");
+        ConsoleLog.Info($"  {saveRecordingHotkey.DisplayName} - save the next recording to the export folder");
+        ConsoleLog.Info("  Ctrl+C - exit");
         controller.RestoreWakeWordListening();
 
         await Task.Delay(Timeout.Infinite, cancellationToken);

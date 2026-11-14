@@ -30,6 +30,7 @@ public sealed class DictationController : IDisposable
     private int lastInputLength;
     private bool typeTextArmed;
     private bool systemAudioArmed;
+    private bool saveRecordingArmed;
     private bool filePickerOpen;
     private AudioSource recordingSource;
     private bool recordingStartedByWakeWord;
@@ -109,6 +110,21 @@ public sealed class DictationController : IDisposable
 
             typeTextArmed = !typeTextArmed;
             ConsoleLog.Event(typeTextArmed ? "Type text armed for the next recording" : "Type text disarmed");
+            PublishIndicator();
+        }
+    }
+
+    public void OnSaveRecordingHotkey()
+    {
+        lock (sync)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            saveRecordingArmed = !saveRecordingArmed;
+            ConsoleLog.Event(saveRecordingArmed ? "Save recording armed for the next recording" : "Save recording disarmed");
             PublishIndicator();
         }
     }
@@ -360,12 +376,13 @@ public sealed class DictationController : IDisposable
         var cancellation = new CancellationTokenSource();
         operation = cancellation;
         var typeText = TakeTypeTextFlag();
+        var exportRecording = TakeSaveRecordingFlag();
         state = DictationState.Transcribing;
         PublishIndicator();
         var id = generation;
         var fromMicrophone = recordingSource == AudioSource.Microphone;
         var wakeWordEdges = fromMicrophone ? new WakeWordEdges(recordingStartedByWakeWord, stoppedByWakeWord) : WakeWordEdges.None;
-        _ = Task.Run(() => ProcessRecordingAsync(recording, id, typeText, fromMicrophone, wakeWordEdges, cancellation.Token));
+        _ = Task.Run(() => ProcessRecordingAsync(recording, id, typeText, exportRecording, fromMicrophone, wakeWordEdges, cancellation.Token));
     }
 
     private void CancelOperation()
@@ -381,11 +398,23 @@ public sealed class DictationController : IDisposable
         return armed;
     }
 
+    private bool TakeSaveRecordingFlag()
+    {
+        var armed = saveRecordingArmed;
+        saveRecordingArmed = false;
+        return armed;
+    }
+
     private void ResetToIdle()
     {
         if (state == DictationState.Recording && TakeTypeTextFlag())
         {
             ConsoleLog.Event("Type text disarmed");
+        }
+
+        if (state == DictationState.Recording && TakeSaveRecordingFlag())
+        {
+            ConsoleLog.Event("Save recording disarmed");
         }
 
         generation++;
@@ -396,7 +425,7 @@ public sealed class DictationController : IDisposable
         SetState(DictationState.Idle);
     }
 
-    private async Task ProcessRecordingAsync(RecordingSession recording, long id, bool typeText, bool voiceCommandsEnabled, WakeWordEdges wakeWordEdges, CancellationToken cancellationToken)
+    private async Task ProcessRecordingAsync(RecordingSession recording, long id, bool typeText, bool exportRecording, bool voiceCommandsEnabled, WakeWordEdges wakeWordEdges, CancellationToken cancellationToken)
     {
         try
         {
@@ -409,6 +438,11 @@ public sealed class DictationController : IDisposable
             if (wakeWordEdges.AtEnd)
             {
                 clip = clip.WithoutTail(settings.WakeWordTrimSeconds);
+            }
+
+            if (exportRecording)
+            {
+                RecordingExporter.Save(clip);
             }
 
             var skipReason = GetSkipReason(clip);
@@ -709,5 +743,5 @@ public sealed class DictationController : IDisposable
     private void PublishIndicator() => IndicatorChanged?.Invoke(CreateIndicator());
 
     private DictationIndicator CreateIndicator() =>
-        new(state, recordingSource, typeTextArmed, systemAudioArmed, listening, settings.Backend == SpeechBackend.Api && apiLanguage.IsEnglish);
+        new(state, recordingSource, typeTextArmed, systemAudioArmed, listening, settings.Backend == SpeechBackend.Api && apiLanguage.IsEnglish, saveRecordingArmed);
 }

@@ -27,6 +27,11 @@ public static class WindowTitle
             parts.Add("[Type text]");
         }
 
+        if (indicator.SaveRecordingArmed)
+        {
+            parts.Add("[Save recording]");
+        }
+
         if (indicator.SystemAudioArmed)
         {
             parts.Add("[System audio]");
